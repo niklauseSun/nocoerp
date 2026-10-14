@@ -1,4 +1,52 @@
 export default {
+  profile: {
+    retryCreationHelp:
+      'The save result is unconfirmed. Click Create again to recover the original submission without creating a duplicate.',
+    businessLicense: 'Business license (optional)',
+    createLicenseHelp:
+      'PDF, JPEG or PNG, up to 10 MB. Automatically watermarked and linked when you create the merchant.',
+    generatedCodeHelp:
+      'The merchant number is generated automatically when you save.',
+    recoverFile: 'Use unfinished upload',
+    retryCleanup: 'Retry attachment cleanup',
+
+    license: 'Licenses',
+    visit: 'Visits',
+    contact: 'Contact history',
+    addlicense: 'Add license',
+    addvisit: 'Add visit',
+    addcontact: 'Add contact',
+    emptylicense: 'No licenses yet',
+    emptyvisit: 'No visits yet',
+    emptycontact: 'No contact records yet',
+    emptyHelp: 'Add records to keep documents and follow-up history here.',
+    readOnlyHelp:
+      'You can view records. Ask an authorized manager to add information.',
+    recordedBy: 'Recorded by',
+    permanent: 'No expiry',
+    unknownExpiry: 'Expiry not recorded',
+    attachment: 'License attachment',
+    fileHelp: 'PDF, JPEG or PNG, up to 10 MB per file.',
+    creditCodeHelp:
+      'Enter an 18-character code using uppercase letters and digits.',
+    saved: 'Added record for "{{name}}"',
+    cleanupFailed: 'Record saved; unused attachment cleanup failed.',
+    fields: {
+      name: 'License name',
+      category: 'License type',
+      number: 'License number',
+      start: 'Valid from',
+      end: 'Valid until',
+      permanent: 'No expiry',
+      notes: 'Notes',
+      date: 'Date',
+      person: 'Contact person',
+      channel: 'Contact details or channel',
+      content: 'Content',
+      outcome: 'Outcome',
+      nextDate: 'Next follow-up date',
+    },
+  },
   nav: {
     merchants: 'Merchants',
     contracts: 'Contracts',
@@ -7,6 +55,10 @@ export default {
     settlements: 'Settlements',
   },
   actions: {
+    profilelicense: 'Added license',
+    profilevisit: 'Added visit',
+    profilecontact: 'Added contact',
+
     reloadDraft: 'Reload version and keep draft; review before retry',
 
     create: 'Create {{resource}}',
@@ -38,10 +90,16 @@ export default {
     continue: 'Continue editing',
   },
   fields: {
+    legalRepresentative: 'Legal representative',
+    creditCode: 'Unified social credit code',
+    businessHours: 'Business hours',
+
     code: 'Merchant code',
     name: 'Merchant name',
     unit: 'Unit',
-    category: 'Category',
+    category: 'Expense category',
+    merchantCategory: 'Business category',
+    categoryName: 'Other category name',
     contact: 'Contact',
     phone: 'Phone',
     accountName: 'Account holder',
@@ -112,6 +170,11 @@ export default {
     alipay: 'Alipay',
     meituan: 'Meituan',
     douyin: 'Douyin',
+    merchantDining: 'Dining',
+    merchantRetail: 'Retail',
+    merchantCulture: 'Arts and cultural products',
+    merchantLeisure: 'Leisure and entertainment',
+    merchantServices: 'Everyday services',
     other: 'Other',
     materials: 'Materials',
     consumables: 'Consumables',
@@ -204,6 +267,13 @@ export default {
     noContract: 'Create a contract covering this period first.',
   },
   errors: {
+    PROFILE_FILE_SIZE: 'Files must be no larger than 10 MB.',
+    PROFILE_FILE_TYPE: 'Upload a valid PDF, JPEG or PNG file.',
+    PROFILE_RETRY_CONFLICT:
+      'The retry content changed. Reopen the create form.',
+    PROFILE_FILE_CONFLICT:
+      'The attachment is already used or belongs to another merchant. Upload it again.',
+
     rate: 'Rate must be between 0 and 100.',
     positive: 'Enter an amount greater than zero.',
     refunds: 'Refunds cannot exceed receipts.',

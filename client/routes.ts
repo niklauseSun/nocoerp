@@ -32,6 +32,24 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         componentLoader: () => import('./pages/hyl/detail.js'),
         children: [
           {
+            name: 'hyl-merchants-licenses-new',
+            path: 'licenses/new',
+            componentLoader: () =>
+              import('./pages/hyl/merchant-profile/form.js'),
+          },
+          {
+            name: 'hyl-merchants-visits-new',
+            path: 'visits/new',
+            componentLoader: () =>
+              import('./pages/hyl/merchant-profile/form.js'),
+          },
+          {
+            name: 'hyl-merchants-contacts-new',
+            path: 'contacts/new',
+            componentLoader: () =>
+              import('./pages/hyl/merchant-profile/form.js'),
+          },
+          {
             name: 'hyl-merchants-detail-edit',
             path: 'edit',
             componentLoader: () => import('./pages/hyl/form.js'),

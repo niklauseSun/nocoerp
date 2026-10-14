@@ -13,10 +13,19 @@ export const date = z
 const optionalText = (max: number) => text(max).default('');
 export const merchantSchema = z
   .object({
-    code: required(30),
+    // Accepted for older clients; the service owns generation and preserves it on edit.
+    code: optionalText(30),
+    creationId: z.string().uuid().optional(),
+    licenseFileId: z.string().uuid().optional(),
     name: required(100),
     unit: required(100),
     category: optionalText(50),
+    categoryName: optionalText(50),
+    legalRepresentative: optionalText(100),
+    creditCode: text(18)
+      .regex(/^$|^[0-9A-Z]{18}$/)
+      .default(''),
+    businessHours: optionalText(500),
     contact: required(50),
     phone: required(30),
     accountName: required(100),
@@ -26,7 +35,21 @@ export const merchantSchema = z
     notes: optionalText(1000),
     active: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.licenseFileId && !value.creationId)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['creationId'],
+        message: 'CREATION_ID_REQUIRED',
+      });
+    if (value.category === 'other' && !value.categoryName)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['categoryName'],
+        message: 'CATEGORY_NAME_REQUIRED',
+      });
+  });
 export const contractSchema = z
   .object({
     number: required(50),

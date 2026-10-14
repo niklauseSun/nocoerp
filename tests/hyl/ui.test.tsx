@@ -102,7 +102,7 @@ it('shares a Chinese calendar while preserving date-only and month-only values',
   );
   await userEvent.click(screen.getByRole('button', { name: '2026年10月1日' }));
   await userEvent.click(
-    screen.getByRole('button', { name: '2026年10月15日 星期四' }),
+    screen.getByRole('button', { name: /2026年10月15日 星期四$/ }),
   );
   expect(onChange).toHaveBeenLastCalledWith('2026-10-15');
   view.unmount();
@@ -119,7 +119,7 @@ it('shares a Chinese calendar while preserving date-only and month-only values',
   );
   await userEvent.click(screen.getByRole('button', { name: '2026年10月' }));
   await userEvent.click(
-    screen.getByRole('button', { name: '2026年10月15日 星期四' }),
+    screen.getByRole('button', { name: /2026年10月15日 星期四$/ }),
   );
   expect(onChange).toHaveBeenLastCalledWith('2026-10');
 });

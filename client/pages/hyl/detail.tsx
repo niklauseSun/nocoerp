@@ -1,3 +1,7 @@
+import { useEffect } from 'react';
+import { ApiClientError } from '@nocobase/app-client';
+import { useQueryClient, useIsFetching } from '@tanstack/react-query';
+import { MerchantRecords } from './merchant-profile/records.js';
 import { scalar } from './model.js';
 import { useBusinessQuery, useBusinessPermission } from './hooks.js';
 import { BackButton } from '#components/back-button';
@@ -13,7 +17,6 @@ import { useTranslation } from '@nocobase/i18n/client';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';
-import { RouteDrawer } from '#components/route-drawer';
 import { Button } from '#components/ui/button';
 import { BusinessStatus } from './status.js';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
@@ -58,6 +61,18 @@ export default function BusinessDetail() {
   const { t, i18n } = useTranslation();
   const result = useBusinessQuery<{ data: BusinessRow }>(`${kind}/${id}`);
   const row = result.data?.data;
+  const client = useQueryClient();
+  const fetching = useIsFetching({ queryKey: ['hyl'] });
+  useEffect(() => {
+    if (result.error instanceof ApiClientError && result.error.status === 404)
+      void client.invalidateQueries({
+        queryKey: ['hyl', 'merchants'],
+        exact: false,
+      });
+  }, [result.error, client]);
+  const parentSearch = new URLSearchParams(location.search);
+  for (const key of ['licensePage', 'visitPage', 'contactPage'])
+    parentSearch.delete(key);
   void location;
   const formatValue = (key: string, value: unknown): string => {
     if (value === undefined || value === null || value === '') return '—';
@@ -94,10 +109,16 @@ export default function BusinessDetail() {
         .map((action) => (
           <ActionLink key={action} kind={kind} action={action} />
         ))}
-      <Refresh busy={result.isFetching} onClick={() => void result.refetch()} />
+      <Refresh
+        busy={kind === 'merchants' ? fetching > 0 : result.isFetching}
+        onClick={() => {
+          if (kind === 'merchants')
+            void client.invalidateQueries({ queryKey: ['hyl'] });
+          else void result.refetch();
+        }}
+      />
     </div>
   ) : null;
-  const short = kind === 'merchants';
   const content = result.isPending ? (
     <LoadingRows />
   ) : result.error ? (
@@ -105,7 +126,7 @@ export default function BusinessDetail() {
   ) : row ? (
     <div className='flex flex-col gap-6'>
       <BusinessStatus status={row.status} />
-      {!short ? actions : null}
+      {kind !== 'merchants' ? actions : null}
       {kind === 'settlements' ? (
         <>
           <Card>
@@ -297,26 +318,42 @@ export default function BusinessDetail() {
         </>
       ) : (
         <dl className='grid grid-cols-[8rem_1fr] gap-4'>
-          {specs[kind].map((spec) => (
-            <div key={spec.key} className='contents'>
-              <dt className='text-sm text-muted-foreground'>
-                {t(`hyl.fields.${spec.key}`)}
-              </dt>
-              <dd className='min-w-0 break-words'>
-                {spec.key === 'notes' ? (
-                  <LongText>
-                    {formatValue(spec.key, row.payload[spec.key])}
-                  </LongText>
-                ) : spec.key === 'merchantId' ? (
-                  row.name
-                ) : (
-                  formatValue(spec.key, row.payload[spec.key])
-                )}
-              </dd>
-            </div>
-          ))}
+          {specs[kind]
+            .filter(
+              (spec) =>
+                kind !== 'merchants' ||
+                spec.key !== 'categoryName' ||
+                row.payload.category === 'other',
+            )
+            .map((spec) => (
+              <div key={spec.key} className='contents'>
+                <dt className='text-sm text-muted-foreground'>
+                  {t(
+                    `hyl.fields.${kind === 'merchants' && spec.key === 'category' ? 'merchantCategory' : spec.key}`,
+                  )}
+                </dt>
+                <dd className='min-w-0 break-words'>
+                  {spec.type === 'notes' ? (
+                    <LongText>
+                      {formatValue(spec.key, row.payload[spec.key])}
+                    </LongText>
+                  ) : spec.key === 'merchantId' ? (
+                    row.name
+                  ) : (
+                    formatValue(spec.key, row.payload[spec.key])
+                  )}
+                </dd>
+              </div>
+            ))}
         </dl>
       )}
+      {kind === 'merchants' ? (
+        <>
+          {(['license', 'visit', 'contact'] as const).map((type) => (
+            <MerchantRecords key={type} id={row.id} type={type} />
+          ))}
+        </>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t('hyl.copy.events')}</CardTitle>
@@ -359,19 +396,22 @@ export default function BusinessDetail() {
   ) : null;
   return (
     <>
-      {short ? (
-        <RouteDrawer title={row?.name ?? t(`hyl.nav.${kind}`)} footer={actions}>
+      <RouteChildPage>
+        <PageContainer>
+          <BackButton
+            to={{ pathname: '..', search: parentSearch.toString() }}
+          />
+          <PageHeader
+            title={
+              kind === 'merchants'
+                ? (row?.name ?? t('hyl.nav.merchants'))
+                : (row?.number ?? t(`hyl.nav.${kind}`))
+            }
+            actions={kind === 'merchants' ? actions : undefined}
+          />
           {content}
-        </RouteDrawer>
-      ) : (
-        <RouteChildPage>
-          <PageContainer>
-            <BackButton />
-            <PageHeader title={row?.number ?? t(`hyl.nav.${kind}`)} />
-            {content}
-          </PageContainer>
-        </RouteChildPage>
-      )}
+        </PageContainer>
+      </RouteChildPage>
       <Outlet context={{ kind, row, reload: () => result.refetch() }} />
     </>
   );

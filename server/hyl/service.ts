@@ -2,7 +2,7 @@ import { businessFilter, type BusinessFilters } from './filters.js';
 import { loadDashboard } from './dashboard.js';
 import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
 import { creationRuntime } from './policy-lifecycle.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type {
   DatabaseManager,
   DatabaseConnection,
@@ -76,8 +76,9 @@ export class HylService {
     id: string,
     action = 'read',
     connection = this.db.connection(),
+    resolvedPolicy?: RepositoryPolicy,
   ): Promise<Row> {
-    const policy = await this.policy(access, kind, action);
+    const policy = resolvedPolicy ?? (await this.policy(access, kind, action));
     const row = await connection
       .repository<Row>(tables[kind])
       .withPolicy(policy)
@@ -253,11 +254,49 @@ export class HylService {
     expectedVersion?: number,
   ): Promise<Row> {
     const payload = schemas[kind].parse(data) as Record<string, unknown>;
+    const creationId = kind === 'merchants' ? scalar(payload.creationId) : '';
+    const licenseFileId =
+      kind === 'merchants' ? scalar(payload.licenseFileId) : '';
+    if (id && (creationId || licenseFileId))
+      fail('INVALID_FIELD', 'INVALID_ARGUMENT');
+    delete payload.creationId;
+    delete payload.licenseFileId;
+    if (kind === 'merchants') {
+      delete payload.code;
+      if (payload.category !== 'other') payload.categoryName = '';
+    }
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ payload, licenseFileId }))
+      .digest('hex');
     const policy = await this.policy(access, kind, 'write');
+    const merchantPolicy =
+      kind === 'merchants'
+        ? undefined
+        : await this.policy(access, 'merchants', 'read');
     return this.db.transaction(async (c) => {
+      if (creationId) {
+        const previous = await c
+          .repository('hylMerchantCreations')
+          .findOne({ filter: { id: creationId } });
+        if (previous) {
+          if (
+            previous.ownerId !== access.actor ||
+            previous.requestHash !== requestHash
+          )
+            fail('PROFILE_RETRY_CONFLICT', 'ALREADY_EXISTS');
+          return this.get(access, 'merchants', creationId, 'write', c, policy);
+        }
+        if (
+          await c
+            .repository('hylMerchants')
+            .exists({ filter: { id: creationId } })
+        )
+          fail('PROFILE_RETRY_CONFLICT', 'ALREADY_EXISTS');
+      }
       let old: Row | undefined;
       if (id) {
-        old = await this.get(access, kind, id, 'write', c);
+        // Reuse the policy resolved before opening SQLite's single-connection transaction.
+        old = await this.get(access, kind, id, 'write', c, policy);
         if (old.version !== expectedVersion)
           fail('VERSION_CONFLICT', 'ABORTED');
         if (
@@ -274,6 +313,7 @@ export class HylService {
           scalar(payload.merchantId),
           'read',
           c,
+          merchantPolicy,
         );
         await this.lockMerchant(c, merchant.id);
         if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
@@ -341,7 +381,18 @@ export class HylService {
         )
           fail('CONTRACT_NOT_COVERED');
       }
+      if (kind === 'merchants') {
+        if (payload.category !== 'other') payload.categoryName = '';
+        // Use the persisted identity on edit, including legacy merchant numbers.
+        // Cryptographic identifiers avoid MAX+1 races; the unique index is the final guard.
+        payload.code =
+          old?.number ?? `SH${randomBytes(12).toString('hex').toUpperCase()}`;
+      }
       const values = this.base(kind, payload, access.actor, merchant);
+      if (creationId) {
+        values.id = creationId;
+        values.merchantId = creationId;
+      }
       // Actor is maintained in the separate audit table; never accept actor or state from API input.
 
       const repo = c
@@ -397,6 +448,53 @@ export class HylService {
         });
         result = created.record as unknown as Row;
       } else result = (await repo.createOne({ values })).record as Row;
+      if (licenseFileId) {
+        const claim = await c.repository('hylMerchantFiles').updateMany({
+          filter: {
+            id: licenseFileId,
+            merchantId: creationId,
+            ownerId: access.actor,
+            linked: false,
+          },
+          values: { linked: true },
+        });
+        if (claim.updatedCount !== 1)
+          fail('PROFILE_FILE_CONFLICT', 'ALREADY_EXISTS');
+        const createdAt = new Date().toISOString();
+        const recordId = randomUUID();
+        await c.repository('hylMerchantRecords').createOne({
+          values: {
+            id: recordId,
+            merchantId: result.id,
+            type: 'license',
+            requestId: creationId,
+            actor: access.actor,
+            date: createdAt.slice(0, 10),
+            createdAt,
+            payload: {
+              requestId: creationId,
+              name: '营业执照',
+              category: '营业执照',
+              number: scalar(payload.creditCode),
+              start: '',
+              end: '',
+              permanent: false,
+              notes: '',
+              fileId: licenseFileId,
+            },
+          },
+        });
+        await this.event(c, result, access, 'profilelicense', { recordId });
+      }
+      if (creationId)
+        await c.repository('hylMerchantCreations').createOne({
+          values: {
+            id: creationId,
+            ownerId: access.actor,
+            requestHash,
+            createdAt: new Date().toISOString(),
+          },
+        });
       await this.event(c, result, access, old ? 'edit' : 'create');
       return result;
     });
@@ -404,6 +502,10 @@ export class HylService {
   async generate(access: Access, input: unknown): Promise<Row> {
     const data = schemas.settlements.parse(input);
     const policy = await this.policy(access, 'settlements', 'write');
+    const merchantPolicy = await this.policy(access, 'merchants', 'read');
+    const contractPolicy = await this.policy(access, 'contracts', 'read');
+    const revenuePolicy = await this.policy(access, 'revenueReports', 'read');
+    const expensePolicy = await this.policy(access, 'expenses', 'read');
     return this.db.transaction(async (c) => {
       const merchant = await this.get(
         access,
@@ -411,6 +513,7 @@ export class HylService {
         data.merchantId,
         'read',
         c,
+        merchantPolicy,
       );
       await this.lockMerchant(c, merchant.id);
       if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
@@ -420,6 +523,7 @@ export class HylService {
         data.contractId,
         'read',
         c,
+        contractPolicy,
       );
       const contract = schemas.contracts.parse(contractRow.payload);
       const [start, end] = periodFor(data.month, data.part);
@@ -449,10 +553,10 @@ export class HylService {
       // Monetary sources are read through this operation's separately authorized source views.
       const revenueRepo = c
         .repository(tables.revenueReports)
-        .withPolicy(await this.policy(access, 'revenueReports', 'read'));
+        .withPolicy(revenuePolicy);
       const expenseRepo = c
         .repository(tables.expenses)
-        .withPolicy(await this.policy(access, 'expenses', 'read'));
+        .withPolicy(expensePolicy);
       const revenues = (await revenueRepo.findMany({
         filter: scope,
       })) as unknown as Row[];
@@ -551,14 +655,21 @@ export class HylService {
           : action === 'pay'
             ? 'pay'
             : 'review';
+    // Authorization (including ownMerchant scope queries) uses the root connection.
+    // Resolve it before acquiring SQLite's sole transaction connection.
+    const policy = await this.policy(access, kind, permission);
+    const merchantPolicy = await this.policy(access, 'merchants', 'read');
+    if (action === 'confirm' && body.confirmation !== 'online')
+      await this.policy(access, 'settlements', 'review');
     return this.db.transaction(async (c) => {
-      const record = await this.get(access, kind, id, permission, c);
+      const record = await this.get(access, kind, id, permission, c, policy);
       const merchant = await this.get(
         access,
         'merchants',
         record.merchantId,
         'read',
         c,
+        merchantPolicy,
       );
       await this.lockMerchant(c, merchant.id);
       if (record.version !== body.expectedVersion)
@@ -585,7 +696,6 @@ export class HylService {
           if (merchant.userId !== access.actor)
             fail('MERCHANT_CONFIRMATION_REQUIRED', 'PERMISSION_DENIED');
         } else {
-          await this.policy(access, 'settlements', 'review');
           if (!body.confirmedBy || !body.evidence)
             fail('CONFIRMATION_EVIDENCE_REQUIRED', 'INVALID_ARGUMENT');
         }

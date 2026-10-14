@@ -1,3 +1,4 @@
+import { useCreateLicense } from './merchant-profile/create-license.js';
 import { DiscardDialog } from './discard-dialog.js';
 import { drafts } from './drafts.js';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
@@ -69,7 +70,11 @@ export default function BusinessForm() {
     undefined,
     !!id,
   );
-  const fields = specs[kind];
+  const fields = useMemo(
+    () =>
+      specs[kind].filter((spec) => kind !== 'merchants' || spec.key !== 'code'),
+    [kind],
+  );
   const schema = useMemo(
     () =>
       z
@@ -93,6 +98,45 @@ export default function BusinessForm() {
                 path: [field.key],
                 message: t('hyl.errors.money'),
               });
+          }
+          if (kind === 'merchants') {
+            if (
+              values.category === 'other' &&
+              !scalar(values.categoryName).trim()
+            )
+              ctx.addIssue({
+                code: 'custom',
+                path: ['categoryName'],
+                message: t('hyl.errors.required'),
+              });
+            if (
+              values.category === 'other' &&
+              scalar(values.categoryName).length > 50
+            )
+              ctx.addIssue({
+                code: 'custom',
+                path: ['categoryName'],
+                message: t('hyl.errors.invalidField'),
+              });
+            if (
+              values.creditCode &&
+              !/^[0-9A-Z]{18}$/.test(scalar(values.creditCode))
+            )
+              ctx.addIssue({
+                code: 'custom',
+                path: ['creditCode'],
+                message: t('hyl.profile.creditCodeHelp'),
+              });
+            for (const [key, max] of [
+              ['legalRepresentative', 100],
+              ['businessHours', 500],
+            ] as const)
+              if (scalar(values[key]).length > max)
+                ctx.addIssue({
+                  code: 'custom',
+                  path: [key],
+                  message: t('hyl.errors.invalidField'),
+                });
           }
           if (kind === 'contracts') {
             if (scalar(values.end) < scalar(values.start))
@@ -138,8 +182,19 @@ export default function BusinessForm() {
     resolver: zodResolver(schema),
     defaultValues: restored?.values ?? defaults(kind),
   });
+  const license = useCreateLicense(
+    kind === 'merchants' && !id,
+    draftKey,
+    setError,
+    form.formState.isSubmitting,
+  );
   useEffect(() => {
-    if (latest.data && !initializedRef.current) {
+    if (
+      latest.data &&
+      latest.isFetchedAfterMount &&
+      !latest.isFetching &&
+      !initializedRef.current
+    ) {
       initializedRef.current = true;
       baseVersionRef.current = restored?.version ?? latest.data.data.version;
       const values: Values = {};
@@ -150,13 +205,24 @@ export default function BusinessForm() {
       }
       form.reset(restored?.values ?? values);
     }
-  }, [latest.data, fields, form, restored]);
+  }, [
+    latest.data,
+    latest.isFetchedAfterMount,
+    latest.isFetching,
+    fields,
+    form,
+    restored,
+  ]);
   useEffect(() => {
-    if (!form.formState.isDirty) return;
+    if (latest.error instanceof ApiClientError && latest.error.status === 404)
+      void client.invalidateQueries({ queryKey: ['hyl', kind] });
+  }, [latest.error, client, kind]);
+  useEffect(() => {
+    if (!form.formState.isDirty && !license.dirty && !license.busy) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [form.formState.isDirty]);
+  }, [form.formState.isDirty, license.dirty, license.busy]);
   const preview = useWatch({ control: form.control });
   const dirty = form.formState.isDirty;
   useEffect(() => {
@@ -167,7 +233,7 @@ export default function BusinessForm() {
       });
   }, [dirty, preview, draftKey]);
   const merchantId = useWatch({ control: form.control, name: 'merchantId' });
-  const pending = form.formState.isSubmitting;
+  const pending = form.formState.isSubmitting || license.busy;
   const close = () => {
     void navigate(
       { pathname: '..', search: location.search },
@@ -184,6 +250,20 @@ export default function BusinessForm() {
       : t('hyl.actions.create', { resource: t(`hyl.nav.${kind}`) });
   const save = async (values: Values) => {
     setError(undefined);
+    // Old in-memory drafts can still carry a manually entered merchant code.
+    if (kind === 'merchants') {
+      values = { ...values };
+      delete values.code;
+      if (values.category !== 'other') values.categoryName = '';
+      if (!id) {
+        values.creationId = license.creationId;
+        if (license.fileId) values.licenseFileId = license.fileId;
+      }
+    }
+    if (kind === 'merchants' && !id) {
+      values = license.submission ?? values;
+      license.freeze(values);
+    }
     try {
       const response = await api.request<{ data: BusinessRow }>({
         path: id ? `${kind}/${id}` : kind,
@@ -193,17 +273,32 @@ export default function BusinessForm() {
       client.setQueryData(['hyl', `${kind}/${response.data.id}`, undefined], {
         data: response.data,
       });
-      await client.invalidateQueries({ queryKey: ['hyl'] });
+      await client
+        .invalidateQueries({ queryKey: ['hyl'] })
+        .catch(() => undefined);
       toaster.show({
         title: t(id ? 'hyl.copy.saved' : 'hyl.copy.created', {
           name: response.data.number,
         }),
         type: 'success',
       });
+      if (kind === 'merchants' && !id && license.dirty) {
+        await license.cleanupUnused(license.fileId).catch(() => {
+          toaster.show({
+            title: t('hyl.profile.cleanupFailed'),
+            type: 'error',
+          });
+        });
+      }
+      license.clear();
       drafts.delete(draftKey);
       form.reset(values);
       close();
     } catch (cause) {
+      if (kind === 'merchants' && !id)
+        license.failed(
+          !(cause instanceof ApiClientError) || cause.status >= 500,
+        );
       setError(cause);
       if (cause instanceof ApiClientError) {
         const payload = cause.payload as
@@ -226,7 +321,8 @@ export default function BusinessForm() {
         variant='outline'
         disabled={pending}
         onClick={() => {
-          if (form.formState.isDirty || restored) setDiscard(true);
+          if (form.formState.isDirty || restored || license.dirty)
+            setDiscard(true);
           else close();
         }}
       >
@@ -245,7 +341,8 @@ export default function BusinessForm() {
     </>
   );
   const content =
-    id && latest.isPending ? (
+    id &&
+    (latest.isPending || (!latest.isFetchedAfterMount && !latest.error)) ? (
       <LoadingRows />
     ) : id && latest.error ? (
       <ErrorPanel error={latest.error} retry={() => void latest.refetch()} />
@@ -254,6 +351,10 @@ export default function BusinessForm() {
         id='hyl-record-form'
         noValidate
         onSubmit={(e) => {
+          if (pending) {
+            e.preventDefault();
+            return;
+          }
           void form.handleSubmit(save)(e);
         }}
         className='flex flex-col gap-6'
@@ -280,6 +381,11 @@ export default function BusinessForm() {
         <p className='text-sm text-muted-foreground'>
           {t('hyl.copy.draftHelp')}
         </p>
+        {kind === 'merchants' && !id ? (
+          <p className='text-sm text-muted-foreground'>
+            {t('hyl.profile.generatedCodeHelp')}
+          </p>
+        ) : null}
         {kind === 'contracts' || kind === 'settlements' ? (
           <Alert>
             <AlertDescription>
@@ -313,124 +419,163 @@ export default function BusinessForm() {
           </Alert>
         ) : null}
         <FieldGroup className='grid gap-6 sm:grid-cols-2'>
-          {fields.map((spec) => (
-            <Fragment key={spec.key}>
-              {kind === 'contracts' &&
-              ['number', 'method', 'includeActivity'].includes(spec.key) ? (
-                <h2 className='text-base font-semibold sm:col-span-2'>
-                  {t(`hyl.copy.group${spec.key}`)}
-                </h2>
-              ) : null}
-              <Controller
-                name={spec.key}
-                control={form.control}
-                render={({ field, fieldState }) => {
-                  const inputId = `hyl-${kind}-${spec.key}`;
-                  const control =
-                    spec.type === 'boolean' ? (
-                      <Choice
-                        id={inputId}
-                        disabled={pending}
-                        value={scalar(field.value)}
-                        onChange={(v) => field.onChange(v === 'true')}
-                        options={[
-                          { value: 'true', label: t('hyl.copy.yes') },
-                          { value: 'false', label: t('hyl.copy.no') },
-                        ]}
-                      />
-                    ) : spec.type === 'select' ? (
-                      <Choice
-                        id={inputId}
-                        disabled={pending}
-                        value={scalar(field.value ?? '')}
-                        onChange={field.onChange}
-                        options={(spec.options ?? []).map((v) => ({
-                          value: v,
-                          label: t(`hyl.enums.${v}`),
-                        }))}
-                      />
-                    ) : spec.type === 'date' || spec.type === 'month' ? (
-                      <DateField
-                        id={inputId}
-                        disabled={pending}
-                        month={spec.type === 'month'}
-                        value={scalar(field.value ?? '')}
-                        onChange={field.onChange}
-                      />
-                    ) : spec.type === 'merchant' || spec.type === 'contract' ? (
-                      <RecordPicker
-                        id={inputId}
-                        disabled={
-                          pending || (!!id && spec.key === 'merchantId')
-                        }
-                        kind={
-                          spec.type === 'merchant' ? 'merchants' : 'contracts'
-                        }
-                        value={scalar(field.value ?? '')}
-                        onChange={(v) => {
-                          field.onChange(v);
-                          if (
-                            spec.key === 'merchantId' &&
-                            kind === 'settlements'
-                          )
-                            form.setValue('contractId', '');
-                        }}
-                        merchantId={
-                          spec.type === 'contract'
-                            ? scalar(merchantId)
-                            : undefined
-                        }
-                      />
-                    ) : spec.type === 'notes' ? (
-                      <Textarea
-                        id={inputId}
-                        {...field}
-                        value={scalar(field.value ?? '')}
-                        disabled={pending}
-                      />
-                    ) : (
-                      <Input
-                        id={inputId}
-                        {...field}
-                        value={scalar(field.value ?? '')}
-                        aria-invalid={fieldState.invalid}
-                        aria-required={!spec.optional}
-                        disabled={pending}
-                        inputMode={
-                          spec.type === 'money' ? 'decimal' : undefined
-                        }
-                      />
-                    );
-                  return (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor={inputId}>
-                        {t(`hyl.fields.${spec.key}`)}
-                        {!spec.optional && spec.type !== 'boolean' ? (
-                          <span aria-hidden='true'> *</span>
-                        ) : null}
-                      </FieldLabel>
-                      {control}
-                      {spec.type === 'money' ? (
-                        <FieldDescription>
+          {fields
+            .filter(
+              (spec) =>
+                kind !== 'merchants' ||
+                spec.key !== 'categoryName' ||
+                preview.category === 'other',
+            )
+            .map((spec) => (
+              <Fragment key={spec.key}>
+                {kind === 'contracts' &&
+                ['number', 'method', 'includeActivity'].includes(spec.key) ? (
+                  <h2 className='text-base font-semibold sm:col-span-2'>
+                    {t(`hyl.copy.group${spec.key}`)}
+                  </h2>
+                ) : null}
+                <Controller
+                  name={spec.key}
+                  control={form.control}
+                  render={({ field, fieldState }) => {
+                    const inputId = `hyl-${kind}-${spec.key}`;
+                    const control =
+                      spec.type === 'boolean' ? (
+                        <Choice
+                          id={inputId}
+                          disabled={pending || license.uncertain}
+                          value={scalar(field.value)}
+                          onChange={(v) => field.onChange(v === 'true')}
+                          options={[
+                            { value: 'true', label: t('hyl.copy.yes') },
+                            { value: 'false', label: t('hyl.copy.no') },
+                          ]}
+                        />
+                      ) : spec.type === 'select' ? (
+                        <Choice
+                          id={inputId}
+                          disabled={pending || license.uncertain}
+                          value={scalar(field.value ?? '')}
+                          onChange={field.onChange}
+                          options={[
+                            ...(spec.options ?? []).map((v) => ({
+                              value: v,
+                              label: t(`hyl.enums.${v}`),
+                            })),
+                            // Preserve an existing free-text category when editing an old merchant.
+                            ...(kind === 'merchants' &&
+                            spec.key === 'category' &&
+                            field.value &&
+                            !spec.options?.includes(scalar(field.value))
+                              ? [
+                                  {
+                                    value: scalar(field.value),
+                                    label: scalar(field.value),
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
+                      ) : spec.type === 'date' || spec.type === 'month' ? (
+                        <DateField
+                          id={inputId}
+                          disabled={pending || license.uncertain}
+                          month={spec.type === 'month'}
+                          value={scalar(field.value ?? '')}
+                          onChange={field.onChange}
+                        />
+                      ) : spec.type === 'merchant' ||
+                        spec.type === 'contract' ? (
+                        <RecordPicker
+                          id={inputId}
+                          disabled={
+                            pending ||
+                            license.uncertain ||
+                            (!!id && spec.key === 'merchantId')
+                          }
+                          kind={
+                            spec.type === 'merchant' ? 'merchants' : 'contracts'
+                          }
+                          value={scalar(field.value ?? '')}
+                          onChange={(v) => {
+                            field.onChange(v);
+                            if (
+                              spec.key === 'merchantId' &&
+                              kind === 'settlements'
+                            )
+                              form.setValue('contractId', '');
+                          }}
+                          merchantId={
+                            spec.type === 'contract'
+                              ? scalar(merchantId)
+                              : undefined
+                          }
+                        />
+                      ) : spec.type === 'notes' ? (
+                        <Textarea
+                          id={inputId}
+                          {...field}
+                          value={scalar(field.value ?? '')}
+                          disabled={pending || license.uncertain}
+                        />
+                      ) : (
+                        <Input
+                          id={inputId}
+                          {...field}
+                          value={scalar(field.value ?? '')}
+                          aria-invalid={fieldState.invalid}
+                          aria-required={
+                            !spec.optional ||
+                            (kind === 'merchants' &&
+                              spec.key === 'categoryName')
+                          }
+                          disabled={pending || license.uncertain}
+                          inputMode={
+                            spec.type === 'money' ? 'decimal' : undefined
+                          }
+                        />
+                      );
+                    return (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={inputId}>
                           {t(
-                            spec.key === 'rate'
-                              ? 'hyl.copy.rateHelp'
-                              : 'hyl.copy.amountHelp',
+                            `hyl.fields.${kind === 'merchants' && spec.key === 'category' ? 'merchantCategory' : spec.key}`,
                           )}
-                        </FieldDescription>
-                      ) : spec.type === 'month' ? (
-                        <FieldDescription>
-                          {t('hyl.copy.dateHelp')}
-                        </FieldDescription>
-                      ) : null}
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  );
-                }}
-              />
-            </Fragment>
-          ))}
+                          {(!spec.optional ||
+                            (kind === 'merchants' &&
+                              spec.key === 'categoryName')) &&
+                          spec.type !== 'boolean' ? (
+                            <span aria-hidden='true'> *</span>
+                          ) : null}
+                        </FieldLabel>
+                        {control}
+                        {spec.type === 'money' ? (
+                          <FieldDescription>
+                            {t(
+                              spec.key === 'rate'
+                                ? 'hyl.copy.rateHelp'
+                                : 'hyl.copy.amountHelp',
+                            )}
+                          </FieldDescription>
+                        ) : spec.type === 'month' ? (
+                          <FieldDescription>
+                            {t('hyl.copy.dateHelp')}
+                          </FieldDescription>
+                        ) : null}
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    );
+                  }}
+                />
+              </Fragment>
+            ))}
         </FieldGroup>
+        {license.uncertain ? (
+          <p className='text-sm text-muted-foreground'>
+            {t('hyl.profile.retryCreationHelp')}
+          </p>
+        ) : null}
+        {license.element}
       </form>
     );
 
@@ -441,7 +586,7 @@ export default function BusinessForm() {
           title={title}
           beforeClose={() => {
             if (pending) return false;
-            if (form.formState.isDirty || restored) {
+            if (form.formState.isDirty || restored || license.dirty) {
               setDiscard(true);
               return false;
             }
@@ -457,9 +602,10 @@ export default function BusinessForm() {
             <Button
               variant='ghost'
               className='w-fit'
-              disabled={pending}
+              disabled={pending || license.uncertain}
               onClick={() => {
-                if (form.formState.isDirty || restored) setDiscard(true);
+                if (form.formState.isDirty || restored || license.dirty)
+                  setDiscard(true);
                 else close();
               }}
             >
@@ -477,8 +623,16 @@ export default function BusinessForm() {
         open={discard}
         onOpenChange={setDiscard}
         onConfirm={() => {
-          drafts.delete(draftKey);
-          close();
+          setDiscard(false);
+          void (async () => {
+            try {
+              if (kind === 'merchants' && !id) await license.cleanup();
+              drafts.delete(draftKey);
+              close();
+            } catch (cause) {
+              setError(cause);
+            }
+          })();
         }}
       />
     </>
