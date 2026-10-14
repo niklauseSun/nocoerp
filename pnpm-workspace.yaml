@@ -1,0 +1,72 @@
+# Which dependencies may run install scripts: true compiles a native addon, false skips a script
+# the project does not need. A package left out here stops the install with ERR_PNPM_IGNORED_BUILDS.
+# pnpm 11 reads this from pnpm-workspace.yaml only; see https://pnpm.io/settings/build.
+allowBuilds:
+  better-sqlite3: false
+  esbuild: true
+  oracledb: true
+  tesseract.js: false
+
+# Use msgpackr without its optional native accelerator or platform binary packages.
+ignoredOptionalDependencies: [ msgpackr-extract ]
+
+# Install dependencies explicitly instead of during dev/build/start.
+# create-app installs them initially; run pnpm install after changing dependencies.
+verifyDepsBeforeRun: false
+
+# Skips re-auditing lockfile entries against the supply-chain policy on every install.
+# The check costs tens of seconds here and re-verifies versions the lockfile already pins;
+# newly resolved packages are still checked. Set to false if outside contributors edit the
+# lockfile. See https://pnpm.io/settings/dependency-resolution#trustlockfile.
+trustLockfile: true
+
+# Reports a dependency whose install script was skipped as a warning instead of failing the
+# install. allowBuilds above decides the packages known today; this keeps a new transitive
+# dependency from stopping the install with a red error before anything is even running.
+# See https://pnpm.io/settings/build#strictdepbuilds.
+strictDepBuilds: false
+
+minimumReleaseAgeExclude:
+  - '@aws-sdk/client-s3@3.1151.0'
+  - '@aws-sdk/s3-request-presigner@3.1151.0'
+  - '@hono/node-server@2.1.5'
+  - '@nocobase/app-plugin-authentication@2.0.0-beta.8'
+  - '@nocobase/app-plugin-notification-providers@0.2.0-beta.12'
+  - '@nocobase/app-server@2.0.0-beta.6'
+  - '@nocobase/app-skills@0.1.0-beta.35'
+  - '@nocobase/lifecycle@0.1.0-beta.2'
+  - '@nocobase/mailer@0.1.0-beta.0'
+  - '@rollup/rollup-android-arm-eabi@4.64.6'
+  - '@rollup/rollup-android-arm64@4.64.6'
+  - '@rollup/rollup-darwin-arm64@4.64.6'
+  - '@rollup/rollup-darwin-x64@4.64.6'
+  - '@rollup/rollup-freebsd-arm64@4.64.6'
+  - '@rollup/rollup-freebsd-x64@4.64.6'
+  - '@rollup/rollup-linux-arm-gnueabihf@4.64.6'
+  - '@rollup/rollup-linux-arm-musleabihf@4.64.6'
+  - '@rollup/rollup-linux-arm64-gnu@4.64.6'
+  - '@rollup/rollup-linux-arm64-musl@4.64.6'
+  - '@rollup/rollup-linux-loong64-gnu@4.64.6'
+  - '@rollup/rollup-linux-loong64-musl@4.64.6'
+  - '@rollup/rollup-linux-ppc64-gnu@4.64.6'
+  - '@rollup/rollup-linux-ppc64-musl@4.64.6'
+  - '@rollup/rollup-linux-riscv64-gnu@4.64.6'
+  - '@rollup/rollup-linux-riscv64-musl@4.64.6'
+  - '@rollup/rollup-linux-s390x-gnu@4.64.6'
+  - '@rollup/rollup-linux-x64-gnu@4.64.6'
+  - '@rollup/rollup-linux-x64-musl@4.64.6'
+  - '@rollup/rollup-openbsd-x64@4.64.6'
+  - '@rollup/rollup-openharmony-arm64@4.64.6'
+  - '@rollup/rollup-win32-arm64-msvc@4.64.6'
+  - '@rollup/rollup-win32-ia32-msvc@4.64.6'
+  - '@rollup/rollup-win32-x64-gnu@4.64.6'
+  - '@rollup/rollup-win32-x64-msvc@4.64.6'
+  - '@smithy/core@3.36.0'
+  - '@tiptap/extension-bubble-menu@3.32.0'
+  - '@tiptap/extension-floating-menu@3.32.0'
+  - caniuse-lite@1.0.30001816
+  - electron-to-chromium@1.5.455
+  - execa@10.1.1
+  - rollup@4.64.6
+  - ts-pattern@5.9.1
+  - whatwg-url@17.3.0
