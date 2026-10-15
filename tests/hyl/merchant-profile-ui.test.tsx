@@ -52,6 +52,12 @@ function mount(
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route
+              path='/contracts'
+              element={<Outlet context={{ kind: 'contracts' }} />}
+            >
+              <Route path='new' element={element} />
+            </Route>
+            <Route
               path='/merchants'
               element={<Outlet context={{ kind: 'merchants' }} />}
             >
@@ -629,4 +635,21 @@ it('recovers an unfinished license and retains it when cancellation cleanup fail
   await cancel();
   await userEvent.click(screen.getByRole('button', { name: '放弃修改' }));
   await waitFor(() => expect(deletes).toBe(2));
+});
+
+it('omits the contract number input and preserves the contract period group', () => {
+  api.request.mockResolvedValue({ data: [], meta: { total: 0 } });
+  mount(<BusinessForm />, '/contracts/new');
+  expect(screen.queryByLabelText(/合同编号/)).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: '商户' })).toHaveAttribute(
+    'placeholder',
+    '输入商户名称或编号搜索',
+  );
+  expect(
+    screen.queryByPlaceholderText('搜索名称、编号或参考号'),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText('合同编号将在保存时自动生成。')).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: '合同与周期' }),
+  ).toBeInTheDocument();
 });

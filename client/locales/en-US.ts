@@ -1,3 +1,4 @@
+import assets from './assets/en-US.js';
 import dashboard from './dashboard-en-US.js';
 import hyl from './hyl/en-US.js';
 import type { LocaleResource } from '@nocobase/i18n';
@@ -9,6 +10,7 @@ const enUS = {
   // `./system/` so a template upgrade can replace it without touching the application's copy below.
   ...systemEnUS,
   hyl,
+  assets,
   dashboard,
   // The application's copy goes here, one group per feature. A shared group such as `navigation` is extended by
   // spreading the system one first, `navigation: { ...systemEnUS.navigation, orders: 'Orders' }`, since a group

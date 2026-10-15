@@ -1,3 +1,7 @@
+import {
+  MerchantAssetBindings,
+  ContractAssetSnapshots,
+} from '../assets/bindings.js';
 import { useEffect } from 'react';
 import { ApiClientError } from '@nocobase/app-client';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
@@ -349,11 +353,13 @@ export default function BusinessDetail() {
       )}
       {kind === 'merchants' ? (
         <>
+          <MerchantAssetBindings id={row.id} />
           {(['license', 'visit', 'contact'] as const).map((type) => (
             <MerchantRecords key={type} id={row.id} type={type} />
           ))}
         </>
       ) : null}
+      {kind === 'contracts' ? <ContractAssetSnapshots id={row.id} /> : null}
       <Card>
         <CardHeader>
           <CardTitle>{t('hyl.copy.events')}</CardTitle>

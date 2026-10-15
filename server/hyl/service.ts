@@ -1,3 +1,5 @@
+import { assetPolicy } from '../providers/assets.js';
+import { saveContractAssets } from '../assets/contracts.js';
 import { businessFilter, type BusinessFilters } from './filters.js';
 import { loadDashboard } from './dashboard.js';
 import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
@@ -193,7 +195,7 @@ export class HylService {
     });
   }
   /** Every merchant mutation performs this CAS first. It serializes source approval, contract changes and settlement claims without dialect-specific SQL. */
-  private async lockMerchant(c: DatabaseConnection, id: string): Promise<Row> {
+  async lockMerchant(c: DatabaseConnection, id: string): Promise<Row> {
     const repo = c.repository(tables.merchants);
     const row = (await repo.findOne({
       filter: { id },
@@ -269,6 +271,15 @@ export class HylService {
       .update(JSON.stringify({ payload, licenseFileId }))
       .digest('hex');
     const policy = await this.policy(access, kind, 'write');
+    const assetAccess =
+      kind === 'contracts' &&
+      (id || (Array.isArray(payload.assetIds) && payload.assetIds.length))
+        ? await assetPolicy(access, 'read').catch((cause) => {
+            if (Array.isArray(payload.assetIds) && payload.assetIds.length)
+              throw cause;
+            return undefined;
+          })
+        : undefined;
     const merchantPolicy =
       kind === 'merchants'
         ? undefined
@@ -388,6 +399,13 @@ export class HylService {
         payload.code =
           old?.number ?? `SH${randomBytes(12).toString('hex').toUpperCase()}`;
       }
+      if (kind === 'contracts') {
+        if (payload.assetIds === undefined)
+          payload.assetIds = old?.payload.assetIds ?? [];
+      }
+      if (kind === 'contracts')
+        payload.number =
+          old?.number ?? `HT${randomBytes(12).toString('hex').toUpperCase()}`;
       const values = this.base(kind, payload, access.actor, merchant);
       if (creationId) {
         values.id = creationId;
@@ -448,6 +466,23 @@ export class HylService {
         });
         result = created.record as unknown as Row;
       } else result = (await repo.createOne({ values })).record as Row;
+      if (
+        kind === 'contracts' &&
+        Array.isArray(payload.assetIds) &&
+        (payload.assetIds.length ||
+          (old &&
+            Array.isArray(old.payload.assetIds) &&
+            old.payload.assetIds.length))
+      ) {
+        if (!assetAccess) fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+        await saveContractAssets(
+          c,
+          result,
+          payload.assetIds as string[],
+          assetAccess,
+          access.actor,
+        );
+      }
       if (licenseFileId) {
         const claim = await c.repository('hylMerchantFiles').updateMany({
           filter: {

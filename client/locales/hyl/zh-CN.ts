@@ -203,6 +203,10 @@ export default {
     cancelled: '已撤销',
   },
   copy: {
+    searchMerchant: '输入商户名称或编号搜索',
+    chooseMerchant: '选择商户',
+    loadingMerchants: '正在加载商户',
+    generatedContractNumberHelp: '合同编号将在保存时自动生成。',
     rateHelp: '比例范围0–100，最多两位小数。',
 
     workspace: '海源里经营结算',

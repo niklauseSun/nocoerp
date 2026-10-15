@@ -1,3 +1,4 @@
+import { registerAssets } from '../assets/resources.js';
 import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
 import type { Application } from '@nocobase/app-server/application';
 import { databaseManagerToken } from '@nocobase/db';
@@ -41,6 +42,10 @@ export default class HylProvider extends ServiceProvider<Application> {
   }
   override async boot(): Promise<void> {
     registerResources(
+      this.app.container.resolve(authorizationToken),
+      this.app.container.resolve(databaseManagerToken),
+    );
+    await registerAssets(
       this.app.container.resolve(authorizationToken),
       this.app.container.resolve(databaseManagerToken),
     );

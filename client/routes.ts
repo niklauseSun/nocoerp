@@ -1,10 +1,50 @@
-import { Home, Store, FileText, Receipt, Wallet, Landmark } from 'lucide-react';
+import {
+  Home,
+  Building2,
+  Store,
+  FileText,
+  Receipt,
+  Wallet,
+  Landmark,
+} from 'lucide-react';
 import {
   defineAppRoutes,
   type AppClientRouteContribution,
 } from '@nocobase/app-client/plugins';
 
 const appRoutes: AppClientRouteContribution = defineAppRoutes([
+  {
+    name: 'hyl-assets',
+    path: '/assets',
+    auth: 'required',
+    authz: { resource: { type: 'page', id: 'hyl-assets' }, action: 'access' },
+    navigation: { title: 'assets.title', icon: Building2 },
+    componentLoader: () => import('./pages/assets/index.js'),
+    children: [
+      {
+        name: 'hyl-assets-new',
+        path: 'new',
+        componentLoader: () => import('./pages/assets/form.js'),
+      },
+      {
+        name: 'hyl-assets-detail',
+        path: ':id',
+        componentLoader: () => import('./pages/assets/detail.js'),
+        children: [
+          {
+            name: 'hyl-assets-edit',
+            path: 'edit',
+            componentLoader: () => import('./pages/assets/form.js'),
+          },
+          {
+            name: 'hyl-assets-file-new',
+            path: 'files/new',
+            componentLoader: () => import('./pages/assets/files.js'),
+          },
+        ],
+      },
+    ],
+  },
   {
     name: 'hyl-merchants',
     path: '/merchants',
@@ -31,6 +71,17 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         path: ':id',
         componentLoader: () => import('./pages/hyl/detail.js'),
         children: [
+          {
+            name: 'hyl-merchants-assets-new',
+            path: 'assets/new',
+            componentLoader: () => import('./pages/assets/bindings.js'),
+          },
+          {
+            name: 'hyl-merchants-assets-close',
+            path: 'assets/:bindingId/close',
+            componentLoader: () => import('./pages/assets/bindings.js'),
+          },
+
           {
             name: 'hyl-merchants-licenses-new',
             path: 'licenses/new',

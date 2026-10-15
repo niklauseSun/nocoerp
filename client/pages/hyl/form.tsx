@@ -1,3 +1,6 @@
+import { AssetError as ErrorPanel } from '../assets/shared.js';
+import { ContractAssetsSelector } from '../assets/bindings.js';
+import { MerchantPicker } from './merchant-picker.js';
 import { useCreateLicense } from './merchant-profile/create-license.js';
 import { DiscardDialog } from './discard-dialog.js';
 import { drafts } from './drafts.js';
@@ -41,13 +44,7 @@ import {
   type BusinessRow,
   type Values,
 } from './model.js';
-import {
-  ErrorPanel,
-  LoadingRows,
-  Choice,
-  DateField,
-  RecordPicker,
-} from './common.js';
+import { LoadingRows, Choice, DateField, RecordPicker } from './common.js';
 
 export default function BusinessForm() {
   const toaster = useToaster();
@@ -62,6 +59,10 @@ export default function BusinessForm() {
   const draftKey = `${session?.user.id}/${kind}/${id ?? 'new'}`;
   const [restored] = useState(() => drafts.get(draftKey));
   const initializedRef = useRef(false);
+  const [assetSelection, setAssetSelection] = useState<
+    { merchantId: string; ids: string[] } | undefined
+  >(restored?.assetSelection);
+  const assetsDirty = !!assetSelection;
   const [discard, setDiscard] = useState(false);
   const baseVersionRef = useRef<number | undefined>(undefined);
   const [error, setError] = useState<unknown>();
@@ -72,7 +73,11 @@ export default function BusinessForm() {
   );
   const fields = useMemo(
     () =>
-      specs[kind].filter((spec) => kind !== 'merchants' || spec.key !== 'code'),
+      specs[kind].filter(
+        (spec) =>
+          (kind !== 'merchants' || spec.key !== 'code') &&
+          (kind !== 'contracts' || spec.key !== 'number'),
+      ),
     [kind],
   );
   const schema = useMemo(
@@ -212,6 +217,7 @@ export default function BusinessForm() {
     fields,
     form,
     restored,
+    kind,
   ]);
   useEffect(() => {
     if (latest.error instanceof ApiClientError && latest.error.status === 404)
@@ -224,15 +230,23 @@ export default function BusinessForm() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [form.formState.isDirty, license.dirty, license.busy]);
   const preview = useWatch({ control: form.control });
-  const dirty = form.formState.isDirty;
+  const dirty = form.formState.isDirty || assetsDirty;
   useEffect(() => {
     if (dirty)
       drafts.set(draftKey, {
         values: preview as Values,
         version: baseVersionRef.current,
+        assetSelection,
       });
-  }, [dirty, preview, draftKey]);
+  }, [dirty, preview, draftKey, assetSelection]);
   const merchantId = useWatch({ control: form.control, name: 'merchantId' });
+  const assetIds = assetSelection
+    ? assetSelection.merchantId === scalar(merchantId)
+      ? assetSelection.ids
+      : []
+    : id
+      ? ((latest.data?.data.payload.assetIds as string[] | undefined) ?? [])
+      : [];
   const pending = form.formState.isSubmitting || license.busy;
   const close = () => {
     void navigate(
@@ -260,6 +274,10 @@ export default function BusinessForm() {
         if (license.fileId) values.licenseFileId = license.fileId;
       }
     }
+    if (kind === 'contracts') {
+      values = { ...values };
+      delete values.number;
+    }
     if (kind === 'merchants' && !id) {
       values = license.submission ?? values;
       license.freeze(values);
@@ -268,7 +286,15 @@ export default function BusinessForm() {
       const response = await api.request<{ data: BusinessRow }>({
         path: id ? `${kind}/${id}` : kind,
         method: id ? 'PATCH' : 'POST',
-        json: id ? { values, expectedVersion: baseVersionRef.current } : values,
+        json: id
+          ? {
+              values: {
+                ...values,
+                ...(kind === 'contracts' ? { assetIds } : {}),
+              },
+              expectedVersion: baseVersionRef.current,
+            }
+          : { ...values, ...(kind === 'contracts' ? { assetIds } : {}) },
       });
       client.setQueryData(['hyl', `${kind}/${response.data.id}`, undefined], {
         data: response.data,
@@ -386,6 +412,11 @@ export default function BusinessForm() {
             {t('hyl.profile.generatedCodeHelp')}
           </p>
         ) : null}
+        {kind === 'contracts' && !id ? (
+          <p className='text-sm text-muted-foreground'>
+            {t('hyl.copy.generatedContractNumberHelp')}
+          </p>
+        ) : null}
         {kind === 'contracts' || kind === 'settlements' ? (
           <Alert>
             <AlertDescription>
@@ -429,9 +460,13 @@ export default function BusinessForm() {
             .map((spec) => (
               <Fragment key={spec.key}>
                 {kind === 'contracts' &&
-                ['number', 'method', 'includeActivity'].includes(spec.key) ? (
+                ['merchantId', 'method', 'includeActivity'].includes(
+                  spec.key,
+                ) ? (
                   <h2 className='text-base font-semibold sm:col-span-2'>
-                    {t(`hyl.copy.group${spec.key}`)}
+                    {t(
+                      `hyl.copy.group${spec.key === 'merchantId' ? 'number' : spec.key}`,
+                    )}
                   </h2>
                 ) : null}
                 <Controller
@@ -483,6 +518,14 @@ export default function BusinessForm() {
                           month={spec.type === 'month'}
                           value={scalar(field.value ?? '')}
                           onChange={field.onChange}
+                        />
+                      ) : kind === 'contracts' && spec.type === 'merchant' ? (
+                        <MerchantPicker
+                          invalid={fieldState.invalid}
+                          id={inputId}
+                          value={scalar(field.value ?? '')}
+                          onChange={field.onChange}
+                          disabled={pending || !!id}
                         />
                       ) : spec.type === 'merchant' ||
                         spec.type === 'contract' ? (
@@ -574,6 +617,16 @@ export default function BusinessForm() {
           <p className='text-sm text-muted-foreground'>
             {t('hyl.profile.retryCreationHelp')}
           </p>
+        ) : null}
+        {kind === 'contracts' ? (
+          <ContractAssetsSelector
+            merchantId={scalar(merchantId ?? '')}
+            value={assetIds}
+            onChange={(ids) => {
+              setAssetSelection({ merchantId: scalar(merchantId), ids });
+            }}
+            disabled={pending}
+          />
         ) : null}
         {license.element}
       </form>

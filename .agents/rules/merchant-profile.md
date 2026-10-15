@@ -3,6 +3,8 @@
 商户档案页面为 `/merchants`，页面授权 ID 保持 `hyl-merchants`，业务权限沿用 `hyl.merchants` 的 read/write 和记录范围。
 
 - 新增商户可直接上传选填营业执照。`useCreateLicense` 复用 FileUploadField，文件暂存在当前用户拥有的创建UUID下；未知商户UUID的上传需要商户write业务授权，暂存内容/恢复/清理仍严格限制owner。已存在商户继续检查记录范围，不能把暂存授权当作访问已有档案的方式。创建请求传creationId/可选licenseFileId，HylService在同一事务写商户、证照记录、文件linked及hylMerchantCreations（owner+规范化请求hash），同请求重试返回同档案，不同内容/用户冲突。编辑不能传创建字段。保存期间禁止操作附件；网络/5xx不确定结果锁定输入，保留内存原快照重试，明确失败允许修正。取消清理未关联文件，失败保留草稿；成功后清理未选中的临时文件失败仅提示，不能把成功保存视为失败。关闭浏览器会丢失内存草稿，服务端临时附件需按运维策略清理，本功能不新增后台定时清理。
+- 合同表单使用 `client/pages/hyl/merchant-picker.tsx` 的单输入 Combobox 搜索并选择商户，query通过现有merchants列表API的q/page参数传入，禁用本地过滤以保留服务端结果。搜索时清空旧选择、重置页码，加载中不显示旧页选项；详情请求负责编辑回显，不局限第一页。保留原合同父商户不可改规则。新增shadcn Combobox通过CLI生成，其他业务页的RecordPicker暂不改变。
+- 合同编号同样由后台在保存时生成（HT 加 24 位随机十六进制字符），沿用 hylContracts.number 唯一约束，无需迁移。合同新增/编辑表单不提供编号输入；接口兼容旧客户端传入 number 但不采纳，新建生成、编辑使用持久化旧 number，并同步 payload.number。合同表单的“合同与周期”分组从 merchantId 开始，不能依赖已隐藏的 number 控件显示标题。测试 tests/hyl/contract-number.test.ts 验证无编号创建、并发唯一和生成/旧编号保留。
 - 商户编号由 `HylService.save` 在新建时生成（SH 加 24 位随机十六进制字符），现有 number 唯一约束兜底；payload.code 与 number 同步。接口兼容旧客户端的 code 字段但不采纳它，新建/编辑表单均不提供编号输入；编辑始终沿用数据库中的 number，保留旧档案的人工编号，不需要数据迁移。
 - 商户 category 为下拉经营品类（餐饮、零售、文创、休闲娱乐、生活服务、其他）；其他的具体名称单独保存在 categoryName，选其他时必填且最多 50 字。改选常规品类时服务端清空 categoryName。旧档案的自由文本 category 在编辑时作为额外选项原样展示，接口仍兼容旧值。商户字段标题使用 merchantCategory，费用登记继续使用 category，避免混用标题。
 - 基本字段由 `server/hyl/schema.ts` 和 `client/pages/hyl/model.ts` 定义，业务详情保存在 `hylMerchants.payload`。法人、统一社会信用代码、营业时间为选填，旧档案可以逐步补录。

@@ -206,6 +206,11 @@ export default {
     cancelled: 'Cancelled',
   },
   copy: {
+    searchMerchant: 'Search merchants by name or number',
+    chooseMerchant: 'Choose merchant',
+    loadingMerchants: 'Loading merchants',
+    generatedContractNumberHelp:
+      'The contract number is generated automatically when you save.',
     rateHelp: 'Percentage from 0 to 100, up to two decimal places.',
 
     workspace: 'Haiyuanli settlements',

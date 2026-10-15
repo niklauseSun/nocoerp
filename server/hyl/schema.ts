@@ -52,8 +52,14 @@ export const merchantSchema = z
   });
 export const contractSchema = z
   .object({
-    number: required(50),
+    // Older clients may send a number; identity is assigned by the service.
+    number: optionalText(50),
     merchantId: required(100),
+    assetIds: z
+      .array(z.string().uuid())
+      .max(50)
+      .refine((ids) => new Set(ids).size === ids.length)
+      .optional(),
     start: date,
     end: date,
     cycle: z.enum(['half', 'month']),
