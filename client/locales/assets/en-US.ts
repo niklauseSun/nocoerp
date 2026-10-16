@@ -16,7 +16,7 @@ export default {
   allStates: 'All states',
   allOccupancy: 'All usage',
   sharedArea:
-    'Usage areas are informational; shared allocations do not calculate remaining lettable area.',
+    'Usage area is informational, not an area-based sublease. Create separate units before allocating subdivisions.',
   closeConfirm: 'End the binding for “{{name}}”?',
   closeConfirmHelp:
     'The end date is {{end}}. The binding and its history will be retained.',
@@ -63,7 +63,7 @@ export default {
     'The binding remains in history. Confirm the end date; contracts may prevent ending it early.',
   noBindings: 'No assets are bound yet',
   bindingHelp:
-    'Choose an available unit or stall and its period of use. An asset may be shared by different merchants.',
+    'Each unit or stall allows only one merchant during overlapping dates. Create separate units before subleasing.',
   areaHelp: 'Square meters; enter 0 when the area is not recorded.',
   contractAssets: 'Contract assets',
   contractHelp:
@@ -152,7 +152,7 @@ export default {
     ASSET_BINDING_PERIOD:
       'The merchant allocation must cover the contract dates.',
     ASSET_BINDING_OVERLAP:
-      'This merchant already has an overlapping allocation for this asset.',
+      'This asset already has a merchant allocated during the selected period. Change the dates, or create separate units before subleasing.',
     ASSET_CONTRACT_IN_USE:
       'An existing contract prevents ending the binding on that date.',
   },

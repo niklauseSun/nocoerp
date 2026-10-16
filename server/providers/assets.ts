@@ -390,7 +390,9 @@ export class AssetService {
         fail('ASSET_AREA', 'INVALID_ARGUMENT');
       const all = await c
         .repository<Binding>('hylAssetBindings')
-        .findMany({ filter: { merchantId, assetId: asset.id } });
+        // Occupancy is exclusive across all merchants, even outside this actor's read scope.
+        // The project lock above serializes competing allocations for the same asset.
+        .findMany({ filter: { assetId: asset.id } });
       if (
         all.some(
           (b) =>

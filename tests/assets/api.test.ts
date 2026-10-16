@@ -131,8 +131,8 @@ test('hierarchical ledger, history, allocation, contract snapshots and rollback'
     account: '123',
   });
   const shared = await send<Row>('/merchants', {
-    name: '共享商户',
-    unit: '共享',
+    name: '其他商户',
+    unit: '独立铺位',
     contact: '王',
     phone: '123',
     accountName: '王',
@@ -142,8 +142,8 @@ test('hierarchical ledger, history, allocation, contract snapshots and rollback'
   await send(`/merchants/${shared.id}/assets`, {
     requestId: randomUUID(),
     assetId: unit.id,
-    start: '2026-01-01',
-    end: '2026-12-31',
+    start: '2025-01-01',
+    end: '2025-12-31',
     area: '15',
   });
   await send(`/merchants/${merchant.id}/assets`, {
@@ -173,6 +173,48 @@ test('hierarchical ledger, history, allocation, contract snapshots and rollback'
     { ...binding, requestId: randomUUID() },
     409,
   );
+  // Exclusive usage applies across merchants, including inclusive date boundaries.
+  for (const dates of [
+    { start: '2026-06-01', end: '2026-06-30' },
+    { start: '2025-12-31', end: '2026-01-01' },
+    { start: '2026-12-31', end: '2027-01-31' },
+    { start: '2026-06-01', end: '' },
+  ])
+    await send(
+      `/merchants/${shared.id}/assets`,
+      { ...binding, ...dates, requestId: randomUUID() },
+      409,
+    );
+  const next = {
+    ...binding,
+    requestId: randomUUID(),
+    start: '2027-01-01',
+    end: '',
+  };
+  await send(`/merchants/${shared.id}/assets`, next);
+  await send(
+    `/merchants/${merchant.id}/assets`,
+    {
+      ...binding,
+      requestId: randomUUID(),
+      start: '2028-01-01',
+      end: '2028-12-31',
+    },
+    409,
+  );
+  // Separately registered units may be occupied in parallel.
+  const splitUnit = await send('/assets', {
+    name: '独立铺位B',
+    type: 'unit',
+    parentId: building.id,
+    area: '30',
+    lettableArea: '15',
+  });
+  await send(`/merchants/${shared.id}/assets`, {
+    ...binding,
+    requestId: randomUUID(),
+    assetId: splitUnit.id,
+  });
   await send(
     `/merchants/${merchant.id}/assets`,
     { ...binding, assetId: building.id, requestId: randomUUID() },
@@ -215,7 +257,7 @@ test('hierarchical ledger, history, allocation, contract snapshots and rollback'
     data: { restricted: boolean; merchants: unknown[]; contracts: unknown[] };
   };
   expect(associations.data.restricted).toBe(false);
-  expect(associations.data.merchants).toHaveLength(2);
+  expect(associations.data.merchants).toHaveLength(3);
   expect(associations.data.contracts).toHaveLength(1);
   await send(
     `/contracts/${contract.id}`,
@@ -266,7 +308,7 @@ test('hierarchical ledger, history, allocation, contract snapshots and rollback'
     meta: { total: number };
   };
   expect(tree.data).toHaveLength(2);
-  expect(tree.meta.total).toBe(5);
+  expect(tree.meta.total).toBe(6);
   await send(
     `/assets/${stall.id}`,
     {

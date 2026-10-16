@@ -12,7 +12,8 @@ export default {
   allTypes: '全部类型',
   allStates: '全部状态',
   allOccupancy: '全部使用情况',
-  sharedArea: '使用面积仅作登记，共享资产不按登记面积计算剩余可租面积。',
+  sharedArea:
+    '使用面积仅作登记，不支持按面积分租；需要分租时，请先建立独立铺位。',
   closeConfirm: '确认结束“{{name}}”的绑定？',
   closeConfirmHelp: '使用截止日为 {{end}}，原绑定和历史记录将保留。',
   sort: '排序',
@@ -54,7 +55,8 @@ export default {
   closeBinding: '结束绑定',
   closeHelp: '结束后保留历史记录。请确认截止日期，已有合同可能阻止提前结束。',
   noBindings: '尚未绑定资产',
-  bindingHelp: '选择可用铺位或摊位及使用期间；同一资产可由不同商户共享。',
+  bindingHelp:
+    '同一铺位或摊位在重叠日期内只能绑定一家商户；需要分租时，请先建立独立铺位。',
   areaHelp: '单位平方米；未记录面积时填写 0。',
   contractAssets: '合同资产',
   contractHelp:
@@ -131,7 +133,8 @@ export default {
     ASSET_UNAVAILABLE: '资产或其上级当前不可用。',
     ASSET_LEAF_REQUIRED: '只能绑定铺位或摊位。',
     ASSET_BINDING_PERIOD: '商户绑定期间必须覆盖合同的起止日期。',
-    ASSET_BINDING_OVERLAP: '该商户已在此期间绑定此资产。',
+    ASSET_BINDING_OVERLAP:
+      '该资产在所选期间已有商户绑定，请调整日期；需要分租时，请先建立独立铺位。',
     ASSET_CONTRACT_IN_USE: '已有合同依赖此绑定，不能在所选日期提前结束。',
   },
 };
