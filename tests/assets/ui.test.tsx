@@ -187,17 +187,19 @@ it('preserves edit values and required reason, sends CAS envelope', async () => 
   expect(saved).not.toHaveProperty('id');
   expect(saved).not.toHaveProperty('number');
 });
-it('selects bound contract assets and removes a selection', async () => {
+it('selects available contract assets and removes a selection', async () => {
   api.request.mockResolvedValue({
     data: [
       {
-        id: 'b1',
-        assetId: 'a1',
-        start: '2026-01-01',
-        end: '2026-12-31',
-        asset: { name: '一号铺位', number: 'ZC1' },
+        id: 'a1',
+        name: '一号铺位',
+        number: 'ZC1',
+        type: 'unit',
+        state: 'normal',
+        lettableArea: '10',
       },
     ],
+    meta: { total: 1, page: 1, pageSize: 20 },
   });
   function Selector() {
     const [ids, setIds] = useState<string[]>([]);

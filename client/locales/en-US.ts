@@ -1,3 +1,12 @@
+import procurement from './procurement-en-US.js';
+import inspection from './inspection-en-US.js';
+import repair from './repair-en-US.js';
+import energy from './energy-en-US.js';
+import invoice from './invoice-en-US.js';
+import split from './split-en-US.js';
+import cashier from './cashier-en-US.js';
+import billing from './billing-en-US.js';
+import lease from './lease-en-US.js';
 import assets from './assets/en-US.js';
 import dashboard from './dashboard-en-US.js';
 import hyl from './hyl/en-US.js';
@@ -12,6 +21,15 @@ const enUS = {
   hyl,
   assets,
   dashboard,
+  lease,
+  billing,
+  cashier,
+  split,
+  invoice,
+  energy,
+  repair,
+  inspection,
+  procurement,
   // The application's copy goes here, one group per feature. A shared group such as `navigation` is extended by
   // spreading the system one first, `navigation: { ...systemEnUS.navigation, orders: 'Orders' }`, since a group
   // written here replaces the system group of the same name rather than merging with it.

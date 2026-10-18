@@ -32,6 +32,8 @@ export default {
     saved: 'Added record for "{{name}}"',
     cleanupFailed: 'Record saved; unused attachment cleanup failed.',
     fields: {
+      title: 'Contract title',
+      depositTarget: 'Deposit target',
       name: 'License name',
       category: 'License type',
       number: 'License number',
@@ -49,7 +51,7 @@ export default {
   },
   nav: {
     merchants: 'Merchants',
-    contracts: 'Contracts',
+    contracts: 'Lease contracts',
     revenueReports: 'Revenue reports',
     expenses: 'Expenses',
     settlements: 'Settlements',
@@ -90,6 +92,8 @@ export default {
     continue: 'Continue editing',
   },
   fields: {
+    title: 'Contract title',
+    depositTarget: 'Deposit target',
     legalRepresentative: 'Legal representative',
     creditCode: 'Unified social credit code',
     businessHours: 'Business hours',
@@ -220,7 +224,7 @@ export default {
     groupincludeActivity: 'Included in fee basis',
 
     formula:
-      'Payable = collected funds − operating fee − rent − company-paid expenses. Merchant-paid expenses are statistical only. Monthly fixed/minimum fees and rent use actual period days / month days.',
+      'Payable = collected funds − operating fee − rent − company-paid expenses. Merchant-paid expenses are statistical only. Billing uses the inclusive intersection of contract dates and the settlement window. Monthly fixed/minimum fees and rent use actual billing days / month days.',
 
     draftHelp:
       'Cancel asks before discarding changes. Reopening after in-app navigation restores your draft. Save before reloading or closing the browser.',
@@ -237,7 +241,7 @@ export default {
     saved: 'Saved “{{name}}”',
     done: 'Completed action for “{{name}}”',
     trial:
-      'Half-month charges are prorated by calendar days. Contract settings control vouchers; merchant-paid costs are not deducted again.',
+      'Leases may start on any date. First and final periods use the intersection of contract dates and the settlement window. Contract settings control vouchers; merchant-paid costs are not deducted again.',
     paymentNotice:
       'This records an offline payment and does not initiate a bank transfer.',
     confirmationHelp:
@@ -272,6 +276,30 @@ export default {
     noContract: 'Create a contract covering this period first.',
   },
   errors: {
+    DEPOSIT_OVERDRAW:
+      'Insufficient available deposit or the transfer exceeds the new target.',
+    LEASE_RETRY_CONFLICT:
+      'This request was already recorded with different details. Refresh and check the ledger before continuing.',
+    LEASE_CLOSED:
+      'This lease is archived. Reopen financial clearance with a reason first.',
+    LEASE_SOURCE_REQUIRED:
+      'Choose a valid confirmed debt or an eligible original entry.',
+    LEASE_CHARGE_UNCONFIRMED:
+      'Confirm the independent charge before applying deposit or collecting payment.',
+    LEASE_REVERSAL_DEPENDENCY:
+      'This entry has later dependencies. Reverse the related consumption first; both transfer sides must remain nonnegative and open.',
+    LEASE_ALREADY_REVERSED: 'This entry has already been reversed.',
+    LEASE_RENEWAL_EXISTS:
+      'This contract is terminated or already has a renewal.',
+    LEASE_TERMINATION_REQUIRED:
+      'Enter the actual termination date and handover record for an active lease.',
+    LEASE_TERMINATION_BLOCKED:
+      'Termination is blocked by existing sources, settlements or a future renewal. Preview and resolve them first.',
+    LEASE_BINDING_DEPENDENCY:
+      'Another contract depends on this occupancy. Resolve it before termination.',
+    LEASE_NOT_CLEARED:
+      'Clear all billing periods, reviewed sources, refunds, collections, independent charges and the deposit balance before archiving. The handover date must have passed.',
+
     PROFILE_FILE_SIZE: 'Files must be no larger than 10 MB.',
     PROFILE_FILE_TYPE: 'Upload a valid PDF, JPEG or PNG file.',
     PROFILE_RETRY_CONFLICT:
@@ -298,7 +326,7 @@ export default {
     PENDING_REVIEW:
       'This period has unresolved records. Approve them before settling.',
     INVALID_PERIOD:
-      'Choose a full month or half-month covered by the contract.',
+      'Invalid dates, a settlement cycle that differs from the contract, or no overlap with the selected window.',
     CONTRACT_OVERLAP:
       'This merchant has an overlapping contract. Adjust the dates.',
     CONTRACT_NOT_COVERED:

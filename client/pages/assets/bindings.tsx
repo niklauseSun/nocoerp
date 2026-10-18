@@ -125,8 +125,9 @@ export function ContractAssetsSelector({
   onChange: (v: string[]) => void;
   disabled: boolean;
 }) {
-  const result = useBindings(merchantId),
+  const result = useAssetTree(!!merchantId),
     { t } = useTranslation();
+  const leaves = result.rows.filter((a) => ['unit', 'stall'].includes(a.type));
   return (
     <Field>
       <FieldLabel>{t('assets.contractAssets')}</FieldLabel>
@@ -139,40 +140,48 @@ export function ContractAssetsSelector({
         <LoadingRows />
       ) : result.error ? (
         <AssetError error={result.error} retry={() => void result.refetch()} />
-      ) : result.data?.data.length ? (
-        Array.from(
-          new Map(result.data.data.map((b) => [b.assetId, b])).values(),
-        ).map((b) => (
-          <label
-            className='flex items-start gap-3 rounded-lg border p-3'
-            key={b.assetId}
-          >
-            <Checkbox
-              checked={value.includes(b.assetId)}
-              disabled={disabled}
-              onCheckedChange={(checked) =>
-                onChange(
-                  checked
-                    ? [...value, b.assetId]
-                    : value.filter((id) => id !== b.assetId),
-                )
-              }
-            />
-            <span>
-              {b.asset?.name ?? b.assetId} · {b.asset?.number}
-              <span className='block text-sm text-muted-foreground'>
-                {result.data?.data
-                  .filter((period) => period.assetId === b.assetId)
-                  .map((period) => `${period.start} — ${period.end || '—'}`)
-                  .join(' / ')}
-              </span>
-            </span>
-          </label>
-        ))
       ) : (
-        <p>
-          {t('assets.noBindings')} {t('assets.bindingGuide')}
-        </p>
+        <>
+          {leaves.length ? (
+            leaves.map((a) => (
+              <label
+                key={a.id}
+                className='flex items-start gap-3 rounded-lg border p-3'
+              >
+                <Checkbox
+                  checked={value.includes(a.id)}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    onChange(
+                      checked
+                        ? [...value, a.id]
+                        : value.filter((id) => id !== a.id),
+                    )
+                  }
+                />
+                <span>
+                  {a.name} · {a.number}
+                  <span className='block text-sm text-muted-foreground'>
+                    {a.lettableArea} {t('assets.sqm')} ·{' '}
+                    {t(`assets.states.${a.state}`)}
+                  </span>
+                </span>
+              </label>
+            ))
+          ) : (
+            <p>{t('assets.noBindings')}</p>
+          )}
+          {result.hasNextPage ? (
+            <Button
+              type='button'
+              variant='outline'
+              disabled={result.isFetchingNextPage}
+              onClick={() => void result.fetchNextPage()}
+            >
+              {t('hyl.actions.next')}
+            </Button>
+          ) : null}
+        </>
       )}
     </Field>
   );

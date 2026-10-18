@@ -1,3 +1,6 @@
+import { Related } from '../inspections/related.js';
+import { RepairRelated } from '../repairs/related.js';
+import { EnergyRelated } from '../energy/related.js';
 import { LongText } from '#components/long-text';
 import { useAssetPermission } from './hooks.js';
 import { useState } from 'react';
@@ -189,6 +192,10 @@ export default function AssetDetail() {
                   </dl>
                 </CardContent>
               </Card>
+              <Related kind='tasks' scope='asset' id={id!} />
+              <Related kind='issues' scope='asset' id={id!} />
+              <RepairRelated kind='asset' id={row.data.data.id} />
+              <EnergyRelated kind='asset' id={row.data.data.id} />
               <Card>
                 <CardHeader className='flex flex-row items-center justify-between gap-3'>
                   <CardTitle>{t('assets.files')}</CardTitle>

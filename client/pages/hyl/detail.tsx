@@ -1,3 +1,12 @@
+import { RepairRelated } from '../repairs/related.js';
+import { EnergyRelated } from '../energy/related.js';
+import { InvoiceRelated } from '../invoicing/related.js';
+import { SplitRelated } from '../profit-sharing/related.js';
+import { CashierContractEntry } from '../cashier/contract-entry.js';
+import { BillingContractCard } from '../billing/contract-card.js';
+import { LeaseStatus } from './lease/status.js';
+import { SettlementDebt } from './lease/debt.js';
+import { LeasePanel, LeaseActions } from './lease/panel.js';
 import {
   MerchantAssetBindings,
   ContractAssetSnapshots,
@@ -58,9 +67,12 @@ function ActionLink({ kind, action }: { kind: Kind; action: string }) {
     </Button>
   );
 }
-export default function BusinessDetail() {
-  const { kind } = useOutletContext<{ kind: Kind }>(),
-    { id } = useParams(),
+export default function BusinessDetail({
+  kindOverride,
+}: { kindOverride?: Kind } = {}) {
+  const context = useOutletContext<{ kind: Kind }>();
+  const kind = kindOverride ?? context.kind;
+  const { id } = useParams(),
     location = useLocation();
   const { t, i18n } = useTranslation();
   const result = useBusinessQuery<{ data: BusinessRow }>(`${kind}/${id}`);
@@ -75,7 +87,14 @@ export default function BusinessDetail() {
       });
   }, [result.error, client]);
   const parentSearch = new URLSearchParams(location.search);
-  for (const key of ['licensePage', 'visitPage', 'contactPage'])
+  for (const key of [
+    'licensePage',
+    'visitPage',
+    'contactPage',
+    'sourceId',
+    'ledgerPage',
+    'chargePage',
+  ])
     parentSearch.delete(key);
   void location;
   const formatValue = (key: string, value: unknown): string => {
@@ -96,6 +115,7 @@ export default function BusinessDetail() {
       i18n.exists(`hyl.enums.${scalar(value)}`)
     )
       return t(`hyl.enums.${scalar(value)}`);
+    if (key === 'rate') return `${scalar(value)}%`;
     if (specs[kind].find((f) => f.key === key)?.type === 'money')
       return amountText(value, i18n.language);
     return scalar(value);
@@ -105,7 +125,10 @@ export default function BusinessDetail() {
       {availableActions(kind, row)
         .filter(
           (action) =>
-            action !== 'dispute' || row.confirmationModes?.includes('online'),
+            (action !== 'edit' ||
+              kind !== 'contracts' ||
+              !(row.lease as { version?: number })?.version) &&
+            (action !== 'dispute' || row.confirmationModes?.includes('online')),
         )
         .filter(
           (action) => action !== 'confirm' || row.confirmationModes?.length,
@@ -113,10 +136,11 @@ export default function BusinessDetail() {
         .map((action) => (
           <ActionLink key={action} kind={kind} action={action} />
         ))}
+      {kind === 'contracts' && row ? <LeaseActions row={row} /> : null}
       <Refresh
         busy={kind === 'merchants' ? fetching > 0 : result.isFetching}
         onClick={() => {
-          if (kind === 'merchants')
+          if (['merchants', 'contracts', 'settlements'].includes(kind))
             void client.invalidateQueries({ queryKey: ['hyl'] });
           else void result.refetch();
         }}
@@ -129,8 +153,28 @@ export default function BusinessDetail() {
     <ErrorPanel error={result.error} retry={() => void result.refetch()} />
   ) : row ? (
     <div className='flex flex-col gap-6'>
-      <BusinessStatus status={row.status} />
+      {kind === 'contracts' ? (
+        <LeaseStatus status={row.leaseState ?? 'active'} />
+      ) : row.status === 'due' && row.debtRemaining !== undefined ? (
+        <p className='text-sm font-medium'>
+          {t(
+            Number(row.debtRemaining) === 0
+              ? 'lease.collected'
+              : Number(row.debtRemaining) < -Number(row.amountCents) / 100
+                ? 'lease.partialCollection'
+                : 'lease.pendingCollection',
+          )}
+        </p>
+      ) : (
+        <BusinessStatus status={row.status} />
+      )}
       {kind !== 'merchants' ? actions : null}
+      {kind === 'settlements' ? <SettlementDebt row={row} /> : null}
+      {kind === 'settlements' && row.payload.rentChannel === 'bill' ? (
+        <p className='text-sm text-muted-foreground'>
+          {t('billing.rentInBill')}
+        </p>
+      ) : null}
       {kind === 'settlements' ? (
         <>
           <Card>
@@ -172,21 +216,26 @@ export default function BusinessDetail() {
                     )}
                   </dd>
                 </div>
-                <div className='flex justify-between gap-4'>
-                  <dt>{t('hyl.fields.remaining')}</dt>
-                  <dd>
-                    {amountText(
-                      Number(
-                        (row.payload.amounts as Record<string, string>).payable,
-                      ) -
-                        (row.payments ?? []).reduce(
-                          (sum, p) => sum + Number(p.amount),
-                          0,
-                        ),
-                      i18n.language,
-                    )}
-                  </dd>
-                </div>
+                {Number(
+                  (row.payload.amounts as Record<string, string>).payable,
+                ) >= 0 ? (
+                  <div className='flex justify-between gap-4'>
+                    <dt>{t('hyl.fields.remaining')}</dt>
+                    <dd>
+                      {amountText(
+                        Number(
+                          (row.payload.amounts as Record<string, string>)
+                            .payable,
+                        ) -
+                          (row.payments ?? []).reduce(
+                            (sum, p) => sum + Number(p.amount),
+                            0,
+                          ),
+                        i18n.language,
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </CardContent>
           </Card>
@@ -353,13 +402,32 @@ export default function BusinessDetail() {
       )}
       {kind === 'merchants' ? (
         <>
+          <RepairRelated kind='merchant' id={row.id} />
           <MerchantAssetBindings id={row.id} />
           {(['license', 'visit', 'contact'] as const).map((type) => (
             <MerchantRecords key={type} id={row.id} type={type} />
           ))}
         </>
       ) : null}
-      {kind === 'contracts' ? <ContractAssetSnapshots id={row.id} /> : null}
+      {kind === 'settlements' ? (
+        <SplitRelated kind='settlement' id={row.id} />
+      ) : null}
+      {kind === 'contracts' ? (
+        <>
+          <ContractAssetSnapshots id={row.id} />
+          <LeasePanel row={row} />
+          <RepairRelated kind='contract' id={row.id} />
+          <EnergyRelated
+            kind='contract'
+            id={row.id}
+            end={String(row.payload.end)}
+          />
+          <InvoiceRelated kind='contractId' id={row.id} />
+          <SplitRelated kind='contract' id={row.id} />
+          <BillingContractCard id={row.id} />
+          <CashierContractEntry />
+        </>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t('hyl.copy.events')}</CardTitle>
@@ -378,7 +446,9 @@ export default function BusinessDetail() {
                       ? t(`hyl.actions.${scalar(event.action)}`, {
                           resource: t(`hyl.nav.${kind}`),
                         })
-                      : scalar(event.action)}{' '}
+                      : i18n.exists(`lease.actions.${scalar(event.action)}`)
+                        ? t(`lease.actions.${scalar(event.action)}`)
+                        : scalar(event.action)}{' '}
                     · {scalar(event.actor)} ·{' '}
                     {new Intl.DateTimeFormat(i18n.language, {
                       dateStyle: 'short',

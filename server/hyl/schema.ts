@@ -52,6 +52,8 @@ export const merchantSchema = z
   });
 export const contractSchema = z
   .object({
+    title: optionalText(100),
+    depositTarget: amount.default('0'),
     // Older clients may send a number; identity is assigned by the service.
     number: optionalText(50),
     merchantId: required(100),

@@ -1,3 +1,17 @@
+import { lifecycles as procurementLifecycles } from '../procurement/model.js';
+import { registerProcurement } from '../procurement/resources.js';
+import {
+  planLifecycle,
+  taskLifecycle,
+  issueLifecycle,
+} from '../inspections/model.js';
+import { registerInspections } from '../inspections/resources.js';
+import { repairLifecycle } from '../repairs/model.js';
+import { registerRepairs } from '../repairs/resources.js';
+import { meterLifecycle, readingLifecycle } from '../energy/model.js';
+import { registerEnergy } from '../energy/resources.js';
+import { sourceLifecycle, invoiceLifecycle } from '../invoicing/model.js';
+import { splitLifecycle } from '../profit-sharing/model.js';
 import { registerAssets } from '../assets/resources.js';
 import { userAdministrationServiceToken } from '@nocobase/app-plugin-authentication';
 import type { Application } from '@nocobase/app-server/application';
@@ -11,6 +25,9 @@ import {
   ServiceProvider,
 } from '@nocobase/service-provider';
 import { authorizationToken } from '@nocobase/app-plugin-authorization';
+import { orderLifecycle, reconciliationLifecycle } from '../cashier/model.js';
+import { billLifecycle, receiptLifecycle } from '../billing/model.js';
+import { leaseLifecycle } from '../leases/model.js';
 import { HylService } from '../hyl/service.js';
 import { reportingLifecycle, settlementLifecycle } from '../hyl/lifecycles.js';
 import { registerResources } from '../hyl/resources.js';
@@ -33,6 +50,22 @@ export default class HylProvider extends ServiceProvider<Application> {
       runtime.register(reportingLifecycle('hylRevenueReports'));
       runtime.register(reportingLifecycle('hylExpenses'));
       runtime.register(settlementLifecycle);
+      runtime.register(leaseLifecycle);
+      runtime.register(billLifecycle);
+      runtime.register(splitLifecycle);
+      runtime.register(sourceLifecycle);
+      runtime.register(invoiceLifecycle);
+      runtime.register(orderLifecycle);
+      runtime.register(reconciliationLifecycle);
+      runtime.register(receiptLifecycle);
+      runtime.register(planLifecycle);
+      runtime.register(taskLifecycle);
+      runtime.register(issueLifecycle);
+      runtime.register(repairLifecycle);
+      for (const lifecycle of procurementLifecycles)
+        runtime.register(lifecycle);
+      runtime.register(meterLifecycle);
+      runtime.register(readingLifecycle);
       return new HylService(
         db,
         runtime,
@@ -41,6 +74,10 @@ export default class HylProvider extends ServiceProvider<Application> {
     });
   }
   override async boot(): Promise<void> {
+    registerProcurement(this.app.container.resolve(authorizationToken));
+    registerInspections(this.app.container.resolve(authorizationToken));
+    registerRepairs(this.app.container.resolve(authorizationToken));
+    registerEnergy(this.app.container.resolve(authorizationToken));
     registerResources(
       this.app.container.resolve(authorizationToken),
       this.app.container.resolve(databaseManagerToken),

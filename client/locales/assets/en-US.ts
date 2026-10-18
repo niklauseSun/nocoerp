@@ -67,7 +67,7 @@ export default {
   areaHelp: 'Square meters; enter 0 when the area is not recorded.',
   contractAssets: 'Contract assets',
   contractHelp:
-    'Select assets bound to this merchant. Their allocation must cover the entire contract period; signing snapshots are retained.',
+    'Select units or stalls. A covering binding for this merchant is reused; otherwise occupancy is created for the contract dates. Conflicts are checked on save.',
   noContractAssets: 'No assets selected for this contract',
   snapshot: 'Signing snapshot',
   legacyUnit:

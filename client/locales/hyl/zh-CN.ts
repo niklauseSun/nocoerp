@@ -29,6 +29,8 @@ export default {
     saved: '已为“{{name}}”新增记录',
     cleanupFailed: '记录已保存，未关联附件清理失败。',
     fields: {
+      title: '合同标题',
+      depositTarget: '应收押金',
       name: '证照名称',
       category: '证照类型',
       number: '证照编号',
@@ -46,7 +48,7 @@ export default {
   },
   nav: {
     merchants: '商户档案',
-    contracts: '合同计费',
+    contracts: '租赁合同',
     revenueReports: '营业报送',
     expenses: '费用台账',
     settlements: '结算返款',
@@ -87,6 +89,8 @@ export default {
     continue: '继续编辑',
   },
   fields: {
+    title: '合同标题',
+    depositTarget: '应收押金',
     legalRepresentative: '法人',
     creditCode: '统一社会信用代码',
     businessHours: '营业时间',
@@ -216,7 +220,7 @@ export default {
     groupincludeActivity: '计费包含项目',
 
     formula:
-      '应返款 = 公司归集金额 − 经营计费 − 租金 − 公司代付费用；商户自付费用仅统计。固定/月保底及租金按本期天数÷当月天数折算。',
+      '应返款 = 公司归集金额 − 经营计费 − 租金 − 公司代付费用；商户自付费用仅统计。计费期间取合同日期与结算周期的交集，含首尾日；固定/月保底及租金按实际计费天数÷当月天数折算。',
 
     draftHelp:
       '取消或关闭表单会询问是否放弃修改；应用内返回后重新打开可恢复暂存输入。刷新或关闭浏览器前请先保存。',
@@ -233,7 +237,7 @@ export default {
     saved: '已保存“{{name}}”',
     done: '“{{name}}”操作已完成',
     trial:
-      '计费口径：半月按自然日折算；券与招待按合同配置；商户自付费用不重复扣除。',
+      '计费口径：支持任意日期起租，首尾期按合同与结算周期的交集天数折算；券与招待按合同配置；商户自付费用不重复扣除。',
     paymentNotice: '此操作只登记已完成的线下付款，不会发起银行转账。',
     confirmationHelp:
       '商户本人选择线上确认；财务代为登记需选择线下确认并填写确认人及依据。',
@@ -262,6 +266,23 @@ export default {
     noContract: '请先创建覆盖本期的合同。',
   },
   errors: {
+    DEPOSIT_OVERDRAW: '可用押金不足，或结转金额超过新合同押金目标。',
+    LEASE_RETRY_CONFLICT: '此提交编号已登记其他内容，请刷新并核对台账后继续。',
+    LEASE_CLOSED: '合同已归档，请先说明原因并重开财务结清。',
+    LEASE_SOURCE_REQUIRED:
+      '请选择有效的已确认欠款或可操作的原流水；独立扣款请填写唯一参考号，不可重复关联经营费用。',
+    LEASE_CHARGE_UNCONFIRMED: '独立扣款尚未确认或已取消，不能抵扣或补缴。',
+    LEASE_REVERSAL_DEPENDENCY:
+      '此流水已有后续使用，请先冲正相关抵扣或退款；结转双方须未归档且余额均不得为负。',
+    LEASE_ALREADY_REVERSED: '该流水已冲正，不能重复冲正。',
+    LEASE_RENEWAL_EXISTS: '合同已退租或已有续租合同。',
+    LEASE_TERMINATION_REQUIRED: '请为履约中的合同填写实际退租日与交接记录。',
+    LEASE_TERMINATION_BLOCKED:
+      '退租被现有报送、费用、结算或后续合同阻塞，请先预览并处理。',
+    LEASE_BINDING_DEPENDENCY: '其他合同仍依赖这段资产绑定，请先处理后再退租。',
+    LEASE_NOT_CLEARED:
+      '尚不能归档：须完整结算全部有效租期、审核来源并结清经营返款、补缴及独立扣款，押金余额归零，且已到交接日。',
+
     PROFILE_FILE_SIZE: '文件大小不能超过10MB。',
     PROFILE_FILE_TYPE: '请上传真实的 PDF、JPEG 或 PNG 文件。',
     PROFILE_RETRY_CONFLICT: '重试内容发生变化，请重新打开新增表单。',
@@ -283,7 +304,7 @@ export default {
     VERSION_CONFLICT: '记录已更新，请刷新后核对再操作。',
     DUPLICATE_REFERENCE: '编号或转账参考号已存在，请刷新核对。',
     PENDING_REVIEW: '本期还有草稿、退回或待审核记录，请全部审核后再结算。',
-    INVALID_PERIOD: '请选择合同覆盖的完整自然月或半月。',
+    INVALID_PERIOD: '日期范围无效，或所选结算周期与合同不匹配、没有日期交集。',
     CONTRACT_OVERLAP: '此商户已有重叠期间合同，请调整日期。',
     CONTRACT_NOT_COVERED: '没有覆盖业务日期的合同，请先配置合同。',
     CONTRACT_IN_USE: '合同已被结算引用，请新建未来期间合同。',

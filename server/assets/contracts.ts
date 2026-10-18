@@ -37,6 +37,27 @@ export async function saveContractAssets(
       fail('VERSION_CONFLICT', 'ABORTED');
     Object.assign(asset, fresh);
   }
+  const energyAssignments = await c
+    .repository<{
+      assetId: string;
+      contractId: string;
+      start: string;
+      end: string;
+    }>('hylEnergyAssignments')
+    .findMany({ filter: { contractId: row.id } });
+  if (
+    energyAssignments.some(
+      (a) =>
+        !ids.includes(a.assetId) ||
+        a.start < String(row.payload.start) ||
+        (a.end ||
+          String(
+            existing.find((e) => e.assetId === a.assetId)?.end ||
+              row.payload.end,
+          )) > String(row.payload.end),
+    )
+  )
+    fail('ENERGY_ASSIGNMENT_CONFLICT');
   for (const asset of assets) {
     if (!isLeaf(asset.type)) fail('ASSET_LEAF_REQUIRED', 'INVALID_ARGUMENT');
     const prior = existing.find((e) => e.assetId === asset.id);
@@ -55,8 +76,33 @@ export async function saveContractAssets(
           b.start <= String(row.payload.start) &&
           (!b.end || b.end >= String(row.payload.end)),
       )
-    )
-      fail('ASSET_BINDING_PERIOD');
+    ) {
+      const occupants = await c
+        .repository<Binding>('hylAssetBindings')
+        .findMany({ filter: { assetId: asset.id } });
+      if (
+        occupants.some(
+          (b) =>
+            b.start <= String(row.payload.end) &&
+            (!b.end || b.end >= String(row.payload.start)),
+        )
+      )
+        fail('ASSET_BINDING_OVERLAP');
+      const binding = {
+        id: randomUUID(),
+        merchantId: row.merchantId,
+        assetId: asset.id,
+        requestId: randomUUID(),
+        start: String(row.payload.start),
+        end: String(row.payload.end),
+        area: asset.lettableArea,
+        actor,
+        version: 0,
+        createdAt: new Date().toISOString(),
+      };
+      await c.repository('hylAssetBindings').createOne({ values: binding });
+      await audit(c, asset.id, actor, 'bind', '', null, binding);
+    }
   }
   for (const prior of existing)
     if (!ids.includes(String(prior.assetId))) {

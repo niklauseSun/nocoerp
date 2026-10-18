@@ -1,6 +1,6 @@
 import { useTranslation } from '@nocobase/i18n/client';
 import { ArrowLeftIcon } from 'lucide-react';
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactElement, ReactNode, MouseEventHandler } from 'react';
 import { Link, type To, useLocation } from 'react-router';
 
 import { cn } from 'cn';
@@ -14,6 +14,8 @@ export interface BackButtonProps {
   /** The label, "Back" by default. */
   readonly children?: ReactNode;
   readonly className?: string;
+  /** Lets a covering form confirm unsaved changes before following its parent link. */
+  readonly onClick?: MouseEventHandler<HTMLAnchorElement>;
 }
 
 /**
@@ -29,6 +31,7 @@ export function BackButton({
   children,
   className,
   to,
+  onClick,
 }: BackButtonProps = {}): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
@@ -36,6 +39,7 @@ export function BackButton({
   return (
     <Link
       replace
+      onClick={onClick}
       className={cn(
         'inline-flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground',
         className,

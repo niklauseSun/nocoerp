@@ -7,6 +7,8 @@ export const viewSchema = z.enum(['monthRevenue', 'unsettled', 'unpaid']);
 export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 export interface BusinessFilters {
   q?: string;
+  from?: string;
+  to?: string;
   status?: string;
   merchantId?: string;
   view?: z.infer<typeof viewSchema>;

@@ -13,6 +13,14 @@ export interface BusinessRow {
   version: number;
   settlementId: string | null;
   payload: Record<string, unknown>;
+  lease?: unknown;
+  debtRemaining?: string;
+  allowedLeaseActions?: string[];
+  leaseState?: string;
+  leaseEnd?: string;
+  assetNames?: string;
+  depositTarget?: string | null;
+  depositBalance?: string | null;
   confirmationModes?: string[];
   events?: Record<string, unknown>[];
   payments?: Record<string, unknown>[];
@@ -70,6 +78,8 @@ export const specs: Record<Kind, FieldSpec[]> = {
   ],
   contracts: [
     f('number'),
+    f('title', undefined, undefined, true),
+    f('depositTarget', 'money'),
     f('merchantId', 'merchant'),
     f('start', 'date'),
     f('end', 'date'),
@@ -136,7 +146,7 @@ export const specs: Record<Kind, FieldSpec[]> = {
 };
 export const states: Record<Kind, string[]> = {
   merchants: ['active', 'inactive'],
-  contracts: ['active'],
+  contracts: ['future', 'active', 'expired', 'terminated', 'closed'],
   revenueReports: ['draft', 'pending', 'approved', 'returned'],
   expenses: ['draft', 'pending', 'approved', 'returned'],
   settlements: [

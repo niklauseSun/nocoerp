@@ -25,12 +25,29 @@ export function useErrorText() {
   const { t, i18n } = useTranslation();
   return (error: unknown): string => {
     if (error instanceof ApiClientError) {
+      const procurementKey = 'procurement.errors.' + error.reason;
+      if (i18n.exists(procurementKey)) return t(procurementKey);
+      const inspectionKey = `inspection.errors.${error.reason}`;
+      if (i18n.exists(inspectionKey)) return t(inspectionKey);
       const key = `hyl.errors.${error.reason}`;
+      const repairKey = `repair.errors.${error.reason}`;
+      if (i18n.exists(repairKey)) return t(repairKey);
+      const energyKey = `energy.errors.${error.reason}`;
+      if (i18n.exists(energyKey)) return t(energyKey);
+      const invoiceKey = `invoice.errors.${error.reason}`;
+      if (i18n.exists(invoiceKey)) return t(invoiceKey);
+      const splitKey = `split.errors.${error.reason}`;
+      if (i18n.exists(splitKey)) return t(splitKey);
+      const cashierKey = `cashier.errors.${error.reason}`;
+      if (i18n.exists(cashierKey)) return t(cashierKey);
+      const billingKey = `billing.errors.${error.reason}`;
       return i18n.exists(key)
         ? t(key)
-        : t(
-            `hyl.errors.${[401, 403, 404, 409].includes(error.status) ? error.status : 'generic'}`,
-          );
+        : i18n.exists(billingKey)
+          ? t(billingKey)
+          : t(
+              `hyl.errors.${[401, 403, 404, 409].includes(error.status) ? error.status : 'generic'}`,
+            );
     }
     return t('hyl.errors.network');
   };

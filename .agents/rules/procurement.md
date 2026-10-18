@@ -1,0 +1,11 @@
+# 供应商采购
+- 应用源码：server/procurement、server/routes/procurement.ts、client/pages/procurement；迁移 202610190001_procurement。导航 /procurement，费用台账 /expenses/purchaseLedger，工单详情 /repairs/:repairId/procurement。
+- 项目级供应商；申请按单个资产、可选未结束工单登记。供应商和采购资产必须同项目。采购订单从已批准申请一次性转换；数量固定，草稿单价不得超过批准预算。供应商快照保留；停用/过期阻止新订单转换或下单，不影响历史验收付款。
+- LifecycleRuntime 管理供应商、申请、订单、收货、付款和不可变财务流水。所有操作以项目锁 + 版本 CAS + 操作幂等表提交。不要在 SQLite 事务内用根连接解析权限；先授权再在传入连接重查资产和版本。
+- 收货草稿/待审核合格量预占数量；验收通过才确认应付。不合格量必须备注，不计应付，可以补货。验收及应付流水同事务，不允许验收后修改。
+- 金额按整数分计算。已验收应付 - 净付款 = 剩余应付；不支持预付款、超付。付款凭证项目内永久唯一，仅模拟登记；全额冲销保留原凭证、新增反向流水、恢复应付并重开已结清订单；结清要求全部验收、净付款等于订单总额。无银行/支付接口。
+- 采购财务是项目应付子账，不写入商户 hylExpenses，避免误入商户结算；也不自动叠加工单手工成本。财务台账金额均为正值，必须依据 accrual/payment/paymentReversal 类型判定方向，汇总按全权限范围而非当前筛选页计算。
+- 关联采购未全部验收阻止工单 complete/close；取消工单先取消关联采购。已验收、未付款不阻止实体维修完成；之后付款仍可继续。guard 位于 server/procurement/repair-guard.ts，在维修项目锁内执行，提示不披露隐藏采购金额。
+- 权限 hyl.procurement：read/manage/request/review/purchase/receive/accept/financeRead/pay/reverse，assets 数据范围和 hyl.assets.read 取交集；关联供应商项目和工单再单独授权。普通采购 read 可看订单汇总，无付款凭证和财务流水权限；订单 pay 历史不得写入银行凭证/付款依据。普通角色不自动授权。
+- 明细页各 kind 参数独立；来源预览叶节点只读、禁止递归；收货/付款/流水从订单进入的 Back 回订单而非无列表的中间路径。多字段表单单独覆盖页，小操作路由对话框；保留一份新鲜版本基线；未知响应冻结原请求，复用请求号重试，409 显式重新载入。
+- 说明与演示 ID：docs/供应商采购与模拟付款.md。测试 tests/procurement（真实 SQLite up/down、完整接口流程、权限、并发、格式和页面行为），工单关联回归 tests/repairs。

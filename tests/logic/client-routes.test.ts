@@ -58,6 +58,11 @@ describe('app client routes', () => {
       'revenueReports',
       'expenses',
       'settlements',
+      'billing',
+      'cashier',
+      'energy',
+      'repairs',
+      'inspections',
     ]) {
       const own = authorizations.filter((r) =>
         r.name.startsWith(`hyl-${kind}`),
@@ -134,3 +139,15 @@ function pageAuthorizations(
     ...pageAuthorizations(route.children ?? []),
   ]);
 }
+
+it('registers invoice navigation, local source and correction routes', () => {
+  const text = JSON.stringify(resolveRoutes().routes);
+  for (const name of [
+    'hyl-invoicing',
+    'hyl-invoice-sources',
+    'hyl-invoice-ledger',
+    'hyl-invoice-configs',
+    'hyl-contracts-invoice-config',
+  ])
+    expect(text).toContain(name);
+});

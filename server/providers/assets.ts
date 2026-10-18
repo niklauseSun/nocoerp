@@ -1,3 +1,5 @@
+import type { Row } from '../hyl/schema.js';
+import { effectiveEnd } from '../leases/model.js';
 import { assetBusinessDay } from '../assets/dates.js';
 import type { ContractAsset } from '../assets/schema.js';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -216,6 +218,15 @@ export class AssetService {
         : [];
       if (old && old.parentId !== values.parentId && children.length)
         fail('ASSET_MOVE_CHILDREN');
+      if (
+        old &&
+        ((values.state === 'inactive' && old.state !== 'inactive') ||
+          old.parentId !== values.parentId) &&
+        (await c
+          .repository('hylEnergyMeters')
+          .exists({ filter: { assetId: old.id, status: 'active' } }))
+      )
+        fail('ENERGY_METER_IN_USE');
       if (values.state === 'inactive' && old) {
         if (children.some((child) => child.state !== 'inactive'))
           fail('ASSET_ACTIVE_CHILDREN');
@@ -448,15 +459,33 @@ export class AssetService {
       const contracts = await c
         .repository<ContractAsset>('hylContractAssets')
         .findMany({ filter: { merchantId, assetId: row.assetId } });
+      for (const link of contracts) {
+        const contract = await c
+          .repository<Row>('hylContracts')
+          .findOne({ filter: { id: link.contractId } });
+        if (
+          contract &&
+          String(link.start) >= row.start &&
+          String(link.start) <= (row.end || '9999-12-31') &&
+          (await effectiveEnd(c, contract)) > end
+        )
+          fail('ASSET_CONTRACT_IN_USE');
+      }
+      const managed = await c
+        .repository<{
+          start: string;
+          end: string;
+          assetId: string;
+          merchantId: string;
+        }>('hylEnergyAssignments')
+        .findMany({ filter: { assetId: row.assetId, merchantId } });
       if (
-        contracts.some(
-          (r) =>
-            String(r.start) >= row.start &&
-            String(r.start) <= (row.end || '9999-12-31') &&
-            String(r.end) > end,
+        managed.some(
+          (a) =>
+            a.start <= (row.end || '9999-12-31') && (!a.end || a.end > end),
         )
       )
-        fail('ASSET_CONTRACT_IN_USE');
+        fail('ENERGY_ASSIGNMENT_CONFLICT');
       const result = await c.repository('hylAssetBindings').updateOne({
         filter: { id: bindingId, version: expectedVersion },
         values: { end, version: expectedVersion + 1 },
