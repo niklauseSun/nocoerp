@@ -1454,6 +1454,30 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     ],
   },
   {
+    name: 'mobile-workbench',
+    path: '/workbench',
+    auth: 'required',
+    authz: 'skip',
+    navigation: { title: 'mobile.title', icon: Home },
+    componentLoader: () => import('./pages/workbench/index.js'),
+    children: [
+      {
+        name: 'mobile-workbench-todo',
+        path: 'todos/:messageTodoId',
+        componentLoader: () => import('./pages/messages/detail.js'),
+      },
+      {
+        name: 'mobile-workbench-approval',
+        path: 'approvalRequests/:approvalRequestId',
+        authz: {
+          resource: { type: 'page', id: 'hyl-approvals' },
+          action: 'access',
+        },
+        componentLoader: () => import('./pages/approvals/detail.js'),
+      },
+    ],
+  },
+  {
     // Every signed-in user reaches the landing page. `authz: 'skip'` takes it out of page authorization entirely, so
     // no permission change can leave a user signed in with nowhere to land.
     authz: 'skip',

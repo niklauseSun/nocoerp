@@ -71,6 +71,9 @@ describe('app client routes', () => {
       expect(own.every((r) => r.authorizedAs === `hyl-${kind}`)).toBe(true);
     }
     expect(authorizations.filter((r) => !r.name.startsWith('hyl-'))).toEqual([
+      { name: 'mobile-workbench', authorizedAs: null },
+      { name: 'mobile-workbench-todo', authorizedAs: null },
+      { name: 'mobile-workbench-approval', authorizedAs: 'hyl-approvals' },
       { name: 'home', authorizedAs: null },
       { name: 'inbox', authorizedAs: null },
       { name: 'financial-reports', authorizedAs: 'hyl-financial-reports' },

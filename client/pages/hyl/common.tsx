@@ -99,6 +99,7 @@ export function Choice({
   ariaLabel,
   ariaDescribedBy,
   invalid,
+  showMobileLabel = false,
   id,
   disabled = false,
 }: {
@@ -108,6 +109,7 @@ export function Choice({
   ariaLabel?: string;
   ariaDescribedBy?: string;
   invalid?: boolean;
+  showMobileLabel?: boolean;
   id?: string;
   disabled?: boolean;
 }) {
@@ -127,6 +129,9 @@ export function Choice({
         className='w-full'
       >
         <SelectValue placeholder={t('hyl.actions.choose')}>
+          {showMobileLabel && ariaLabel ? (
+            <span className='md:hidden'>{ariaLabel} · </span>
+          ) : null}
           {options.find((o) => o.value === value)?.label}
         </SelectValue>
       </SelectTrigger>

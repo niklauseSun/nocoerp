@@ -40,12 +40,22 @@ export default function Detail() {
     l = useLocation(),
     path = useResolvedPath('.').pathname,
     [q, setQ] = useSearchParams(),
-    local = path.includes('/approvalRequests/'),
+    local =
+      path.includes('/approvalRequests/') && !path.startsWith('/workbench/'),
     back = {
       pathname: local
         ? path.slice(0, path.lastIndexOf('/approvalRequests/'))
-        : '/approvals',
-      search: l.search,
+        : path.startsWith('/workbench/')
+          ? '/workbench'
+          : '/approvals',
+      search: path.startsWith('/workbench/')
+        ? (() => {
+            const n = new URLSearchParams(l.search);
+            n.delete('eventPage');
+            n.delete('eventOrder');
+            return n.toString();
+          })()
+        : l.search,
     },
     cache = useQueryClient(),
     r = useBusinessQuery<{ data: Approval }>(

@@ -1,3 +1,11 @@
+vi.stubGlobal(
+  'matchMedia',
+  vi.fn(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })),
+);
 import { ApiClientError } from '@nocobase/app-client';
 import Detail from '../../client/pages/messages/detail.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

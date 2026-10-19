@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { FilterPicker } from './filter-picker.js';
 import { scalar, kindFrom, endpoint, useEnergyCan } from './helpers.js';
 import { Fragment, useState } from 'react';
@@ -279,6 +280,7 @@ export default function EnergyList({
                   )}
                 />
                 <Choice
+                  showMobileLabel
                   value={query.type || 'all'}
                   ariaLabel={t('energy.fields.type')}
                   onChange={(v) => set('type', v === 'all' ? '' : v)}
@@ -290,6 +292,7 @@ export default function EnergyList({
                   }))}
                 />
                 <Choice
+                  showMobileLabel
                   value={query.status || 'all'}
                   ariaLabel={t('energy.fields.status')}
                   onChange={(v) => set('status', v === 'all' ? '' : v)}
@@ -313,6 +316,7 @@ export default function EnergyList({
                 />
                 {kind !== 'meters' ? (
                   <Choice
+                    showMobileLabel
                     value={
                       get('billingStatus') === 'all'
                         ? 'all'
@@ -458,7 +462,47 @@ export default function EnergyList({
                 </Empty>
               ) : (
                 <>
-                  <div className='overflow-x-auto'>
+                  <ResponsiveTable
+                    labels={[
+                      ...(kind === 'billing' && canWrite
+                        ? [t('mobile.select')]
+                        : []),
+                      t(
+                        'energy.fields.' +
+                          (kind === 'meters' ? 'code' : 'number'),
+                      ),
+                      ...columns.map((k) => t('energy.fields.' + k)),
+                      t('energy.fields.status'),
+                      t('mobile.actions'),
+                    ]}
+                    titleIndex={kind === 'billing' && canWrite ? 1 : 0}
+                    sort={
+                      <MobileSort
+                        value={query.orderBy}
+                        onChange={(v) => set('orderBy', v)}
+                        fields={columns
+                          .filter((k) =>
+                            [
+                              'usage',
+                              'previous',
+                              'current',
+                              'amountCents',
+                              'updatedAt',
+                              'start',
+                              'end',
+                              'multiplier',
+                              'installedOn',
+                              'latestReading',
+                              'latestReadingEnd',
+                            ].includes(k),
+                          )
+                          .map((k) => ({
+                            value: k === 'usage' ? 'usageKey' : k,
+                            label: t('energy.fields.' + k),
+                          }))}
+                      />
+                    }
+                  >
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -692,7 +736,7 @@ export default function EnergyList({
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                  </ResponsiveTable>
                   <Paged
                     meta={rows.data.meta}
                     busy={rows.isFetching}

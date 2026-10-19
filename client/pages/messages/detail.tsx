@@ -57,7 +57,14 @@ export default function Detail() {
   return (
     <RouteChildPage>
       <PageContainer>
-        <BackButton to={{ pathname: '/messageTodos', search: l.search }} />
+        <BackButton
+          to={{
+            pathname: l.pathname.startsWith('/workbench/')
+              ? '/workbench'
+              : '/messageTodos',
+            search: l.search,
+          }}
+        />
         <PageHeader
           title={d ? d.number + ' ' + d.title : t('messages.detail')}
           actions={

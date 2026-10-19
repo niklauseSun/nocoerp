@@ -1,3 +1,5 @@
+import { Navigate, useLocation } from 'react-router';
+import { useIsMobile } from '#hooks/use-mobile';
 import { useQueryClient } from '@tanstack/react-query';
 import { HomeBillingCards } from '../billing/home-cards.js';
 import { Comparison } from './comparison.js';
@@ -120,6 +122,15 @@ function MetricCard({ metric, data }: { metric: Metric; data: DashboardData }) {
   );
 }
 export default function HomePage() {
+  const mobile = useIsMobile(),
+    l = useLocation();
+  return mobile ? (
+    <Navigate to={{ pathname: '/workbench', search: l.search }} replace />
+  ) : (
+    <Dashboard />
+  );
+}
+function Dashboard() {
   const billingCache = useQueryClient();
   const { t, i18n } = useTranslation();
   const { refresh: refreshSession } = useAuthentication();

@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { ClipboardCheck } from 'lucide-react';
 import {
   Empty,
@@ -191,6 +192,7 @@ export default function List({
           ['status', states, 'states'],
         ].map(([k, vs, g]) => (
           <Choice
+            showMobileLabel
             key={str(k)}
             ariaLabel={t('inspection.fields.' + str(k))}
             value={get(str(k))}
@@ -266,7 +268,31 @@ export default function List({
               {t('inspection.refreshing')}
             </p>
           ) : null}
-          <div className='overflow-x-auto' aria-busy={result.isFetching}>
+          <ResponsiveTable
+            labels={[
+              'number',
+              'title',
+              'type',
+              'assetName',
+              'status',
+              'assigneeName',
+              'day',
+              'dueOn',
+              'updatedAt',
+            ]
+              .map((k) => t('inspection.fields.' + k))
+              .concat(t('mobile.actions'))}
+            sort={
+              <MobileSort
+                value={query.order}
+                onChange={(v) => change('order', v)}
+                fields={['number', 'day', 'dueOn', 'updatedAt'].map((k) => ({
+                  value: k,
+                  label: t('inspection.fields.' + k),
+                }))}
+              />
+            }
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -348,7 +374,7 @@ export default function List({
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTable>
           <Paged
             meta={result.data!.meta}
             busy={result.isFetching}

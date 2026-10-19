@@ -1,3 +1,4 @@
+import { MobileNavigation } from './components/mobile-navigation.js';
 import { useSyncServerLocale } from '@nocobase/app-plugin-i18n/client';
 import type { ReactElement } from 'react';
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
@@ -17,7 +18,6 @@ import {
   AppSidebarToggle,
 } from './components/app-sidebar.js';
 import { NavigationMenu } from './components/navigation-menu.js';
-import { AppBrand } from './components/app-brand.js';
 import { HeaderActions } from './components/header-actions.js';
 import { AppSidebarFooter } from './components/sidebar-footer.js';
 import {
@@ -56,20 +56,18 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
               selectedKey={selectedKey}
             />
           </AppSidebar>
-          <div className='flex min-w-0 flex-1 flex-col'>
+          <div className='app-mobile-surface flex min-h-0 min-w-0 flex-1 flex-col'>
             <LayoutHeader className='sticky top-0 z-40 justify-between'>
               <div className='flex min-w-0 items-center gap-3'>
+                {/* The phone header uses the trail; the full brand remains in the navigation sheet. */}
                 <AppSidebarToggle />
-                <div className='md:hidden'>
-                  <AppBrand />
-                </div>
                 <div className='h-5 w-px shrink-0 bg-border' />
                 {/* The current page's trail: the route tree's, or the one the page declares (`usePageBreadcrumb`). */}
                 <Breadcrumbs denied={denied} />
               </div>
               <HeaderActions />
             </LayoutHeader>
-            <main className='app-brand-surface relative isolate min-w-0 flex-1 overflow-hidden'>
+            <main className='app-brand-surface relative isolate min-h-0 min-w-0 flex-1 overflow-hidden'>
               <BrandWatermark className='-z-10' />
               {/* main only positions; the page scrolls in here, so a child page layer laid over main is neither
             moved by the page's scrolling nor stretched by its height. */}
@@ -77,6 +75,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
                 <Outlet />
               </div>
             </main>
+            <MobileNavigation />
           </div>
         </AppSidebarProvider>
       </PageBreadcrumbProvider>

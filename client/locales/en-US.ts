@@ -1,3 +1,4 @@
+import mobile from './mobile-en-US.js';
 import organization from './organization-en-US.js';
 import finance from './finance-en-US.js';
 import approval from './approval-en-US.js';
@@ -24,6 +25,7 @@ const enUS = {
   ...systemEnUS,
   hyl,
   organization,
+  mobile,
   assets,
   dashboard,
   lease,

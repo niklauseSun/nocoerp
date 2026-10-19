@@ -1,3 +1,4 @@
+import mobile from './mobile-zh-CN.js';
 import organization from './organization-zh-CN.js';
 import finance from './finance-zh-CN.js';
 import approval from './approval-zh-CN.js';
@@ -22,6 +23,7 @@ const zhCN: AppResource = {
   ...systemZhCN,
   hyl,
   organization,
+  mobile,
   assets,
   dashboard,
   lease,

@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { str, useRepairCan } from './helpers.js';
 import {
   Outlet,
@@ -167,6 +168,7 @@ export default function RepairList({
           ['Category', categories, 'categories'],
         ].map(([key, values, group]) => (
           <Choice
+            showMobileLabel
             key={str(key)}
             ariaLabel={t('repair.fields.' + str(key).toLowerCase())}
             value={get(str(key))}
@@ -227,7 +229,31 @@ export default function RepairList({
         </Empty>
       ) : (
         <>
-          <div className='overflow-x-auto'>
+          <ResponsiveTable
+            labels={[
+              'number',
+              'title',
+              'assetName',
+              'merchantName',
+              'priority',
+              'status',
+              'assigneeName',
+              'dueOn',
+              'costCents',
+              'updatedAt',
+            ]
+              .map((k) => t('repair.fields.' + k))
+              .concat(t('mobile.actions'))}
+            sort={
+              <MobileSort
+                value={query.order}
+                onChange={(v) => change('Order', v)}
+                fields={['number', 'dueOn', 'costCents', 'updatedAt'].map(
+                  (k) => ({ value: k, label: t('repair.fields.' + k) }),
+                )}
+              />
+            }
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -312,7 +338,7 @@ export default function RepairList({
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTable>
           <Paged
             meta={result.data!.meta}
             busy={result.isFetching}

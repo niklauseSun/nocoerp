@@ -610,7 +610,7 @@ function FormBody({
         <PageHeader title={title} description={t('repair.newDescription')} />
         <div className='flex max-w-3xl flex-col gap-4'>
           {body}
-          <div className='flex justify-end gap-2'>{footer}</div>
+          <div className='flex flex-wrap justify-end gap-2'>{footer}</div>
         </div>
         {confirmations}
       </PageContainer>

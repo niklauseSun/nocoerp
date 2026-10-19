@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { ClipboardCheck } from 'lucide-react';
 import { useBusinessQuery, kinds } from './hooks.js';
 import {
@@ -106,6 +107,7 @@ export default function List() {
             ).map(([key, opts]) => (
               <div key={key} className='w-full sm:w-48'>
                 <Choice
+                  showMobileLabel
                   value={query[key as 'view']}
                   onChange={(v) => change(key, v)}
                   ariaLabel={t('approval.' + key)}
@@ -134,7 +136,27 @@ export default function List() {
             <LoadingRows />
           ) : rows?.length ? (
             <>
-              <div className='overflow-x-auto' aria-busy={r.isFetching}>
+              <ResponsiveTable
+                labels={[
+                  'source',
+                  'kind',
+                  'status',
+                  'level',
+                  'applicant',
+                  'createdAt',
+                  'updatedAt',
+                ].map((k) => t('approval.' + k))}
+                sort={
+                  <MobileSort
+                    value={query.order}
+                    onChange={(v) => change('order', v)}
+                    fields={['createdAt', 'updatedAt'].map((k) => ({
+                      value: k,
+                      label: t('approval.' + k),
+                    }))}
+                  />
+                }
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -211,7 +233,7 @@ export default function List() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </ResponsiveTable>
               <Paged
                 meta={r.data.meta}
                 onChange={(page) => {

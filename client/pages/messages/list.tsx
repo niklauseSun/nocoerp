@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { Spinner } from '#components/ui/spinner';
 import { Badge } from '#components/ui/badge';
 import { useBusinessQuery, useCheck } from './hooks.js';
@@ -121,6 +122,7 @@ export default function List() {
             />
             <div className='w-full sm:w-48'>
               <Choice
+                showMobileLabel
                 value={query.kind}
                 onChange={(v) => change('kind', v)}
                 ariaLabel={t('messages.allKinds')}
@@ -137,6 +139,7 @@ export default function List() {
             </div>
             <div className='w-full sm:w-48'>
               <Choice
+                showMobileLabel
                 value={query.status}
                 onChange={(v) => change('status', v)}
                 ariaLabel={t('messages.allStates')}
@@ -157,7 +160,27 @@ export default function List() {
             <LoadingRows />
           ) : rows?.length ? (
             <>
-              <div className='overflow-x-auto'>
+              <ResponsiveTable
+                labels={[
+                  'source',
+                  'kind',
+                  'reason',
+                  'status',
+                  'dueOn',
+                  'updatedAt',
+                  'action',
+                ].map((k) => t('messages.' + k))}
+                sort={
+                  <MobileSort
+                    value={query.order}
+                    onChange={(v) => change('order', v)}
+                    fields={['dueOn', 'updatedAt'].map((k) => ({
+                      value: k,
+                      label: t('messages.' + k),
+                    }))}
+                  />
+                }
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -253,7 +276,7 @@ export default function List() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </ResponsiveTable>
               <Paged
                 meta={r.data!.meta}
                 busy={r.isFetching}

@@ -120,6 +120,7 @@ When the built-in mechanism genuinely cannot express what is being asked, changi
 | [.agents/rules/shell.md](.agents/rules/shell.md)                       | Changing layouts, the header, sidebar, breadcrumbs, the account menu or loading indicators                   |
 | [.agents/rules/build-and-deploy.md](.agents/rules/build-and-deploy.md) | Changing the build, packing a deployment, the Docker image, `CDN_BASE_URL`, or building for another platform |
 | [.agents/rules/organization.md](.agents/rules/organization.md)         | 组织树、成员、角色配置、部门继承与项目数据范围及授权缓存隔离                                                 |
+| [.agents/rules/mobile.md](.agents/rules/mobile.md)                     | 手机工作台、响应式业务卡片、触控布局与原业务权限复用                                                         |
 | [.agents/rules/assets.md](.agents/rules/assets.md)                     | 项目与资产分级台账、资产附件、历史记录、商户绑定与合同快照                                                   |
 | [.agents/rules/merchant-profile.md](.agents/rules/merchant-profile.md) | 商户档案、证照上传、恢复与清理，以及走访/联系记录                                                            |
 | [.agents/rules/billing.md](.agents/rules/billing.md)                   | 计费规则、账单、收款核销、押金抵扣与退租财务覆盖联动                                                         |
