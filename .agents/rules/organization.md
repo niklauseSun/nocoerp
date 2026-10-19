@@ -1,0 +1,13 @@
+# Organization and project permissions
+
+App service `server/organization/` and provider register `org.department` subjects, `hyl.assignedProjects` record access and settings `hyl.organization`. Public Users/Authorization services remain identity/role owners. Never add a parallel role/assignment store or directly modify plugin auth tables.
+
+Departments and memberships are disabled, not deleted. Ancestors must all be active; cycles fail closed. One primary active membership per user. Serialize organization writes through the lock row, check versions, audit, and notify affected users through transaction-bound permissionSets API (commit only). `filterActive` must use the caller connection to avoid deadlocking SQLite or violating protected-assignment transactions.
+
+Project assignments are independent user/department sources; active ancestors convey inheritance. Project access grants no functions. Permission-set scopes are positive grants; another allRecords grant still unions, explicitly explained in UI/docs. Never rewrite unrelated existing grants. Keep protected role controls read-only and use public API protection. Generic assignment creation and revocation both require settings:authorization.permission-sets/assign; there is no revoke settings action.
+
+`hyl.assignedProjects` maps assets by projectId, other business sources through wholly authorized merchant relationships. Exclude missing/unbound/unknown project associations and mixed unauthorized merchants. Existing dependent services enforce original parent and asset policies; do not bypass those for reports or relation targets. Resolve authorization before business transactions. New source scopes need tests for both lists and foreign direct IDs.
+
+Client role editor uses official registry PermissionEditor. Preserve unknown/custom stored scopes on complete-definition updates. Encode row identifiers before passing to editor (its IDs are used in HTML labels). All fields/aria labels/errors bilingual. New roles start each action's scopes empty; admin chooses explicit scope. Organization maintenance does not imply role or user administration. Query keys include identity and authorization revision; preserve pagination only within that boundary, including direct asset queries. Cache mutations use the same identity/revision and must not update another actor's stored query.
+
+Local demo command is explicit, production-guarded, creates three approved identities with random undisclosed passwords and two isolated demo projects. Do not rerun just to inspect existing results. Details and current demo label are in [organization workflow](../../docs/组织权限与项目数据隔离.md). Existing approval-demo accounts remain unchanged.

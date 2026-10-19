@@ -23,6 +23,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => toaster,
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: (input: { action: string }) => ({
     can: input.action === 'depositRead' ? financial.can : true,
   }),
@@ -230,3 +231,10 @@ it('shows a read-only original reversal entry, evidence/date and blocking depend
     api.request.mock.calls.filter(([i]) => i.method === 'POST'),
   ).toHaveLength(0);
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

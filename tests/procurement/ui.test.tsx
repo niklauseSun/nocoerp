@@ -28,6 +28,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => ({ show: vi.fn() }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: ({ action }: { action: string }) => ({
     can: action === 'financeRead' ? permissions.finance : permissions.can,
     isPending: false,
@@ -277,3 +278,10 @@ it('order detail chooses receipt as next step and refreshes related receipts', a
     ).toBe(before + 1),
   );
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

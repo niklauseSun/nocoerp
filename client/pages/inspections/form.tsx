@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from '../hyl/hooks.js';
 import { LongText } from '#components/long-text';
 import { useMissingRecord } from './helpers.js';
 import { str, today, endpoint, useInspectionCan } from './helpers.js';
@@ -128,6 +129,7 @@ function Body({
     api = useApiClient(),
     toast = useToaster(),
     cache = useQueryClient(),
+    identity = useBusinessIdentity(),
     manage = useInspectionCan('manage'),
     w = useWork();
   const [baseline] = useState(row),
@@ -311,7 +313,9 @@ function Body({
         {
           predicate: (q) =>
             q.queryKey[0] === 'hyl' &&
-            q.queryKey[1] === endpoint(kind) + '/' + result.data.id,
+            q.queryKey[1] === endpoint(kind) + '/' + result.data.id &&
+            q.queryKey[3] === identity[0] &&
+            q.queryKey[4] === identity[1],
         },
         (old) => ({ data: { ...result.data, events: old?.data.events } }),
       );

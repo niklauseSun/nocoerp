@@ -97,6 +97,8 @@ export function Choice({
   onChange,
   options,
   ariaLabel,
+  ariaDescribedBy,
+  invalid,
   id,
   disabled = false,
 }: {
@@ -104,6 +106,8 @@ export function Choice({
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   ariaLabel?: string;
+  ariaDescribedBy?: string;
+  invalid?: boolean;
   id?: string;
   disabled?: boolean;
 }) {
@@ -115,7 +119,13 @@ export function Choice({
       onValueChange={(v) => onChange(String(v ?? ''))}
       disabled={disabled}
     >
-      <SelectTrigger id={id} aria-label={ariaLabel} className='w-full'>
+      <SelectTrigger
+        id={id}
+        aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={invalid}
+        className='w-full'
+      >
         <SelectValue placeholder={t('hyl.actions.choose')}>
           {options.find((o) => o.value === value)?.label}
         </SelectValue>

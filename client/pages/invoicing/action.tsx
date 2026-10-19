@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { invoiceFieldMessages } from './form-errors.js';
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -9,7 +10,7 @@ import {
 } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useApiClient, useToaster, ApiClientError } from '@nocobase/app-client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';

@@ -1,3 +1,4 @@
+import { ApprovalPanel } from '../approvals/panel.js';
 import { EnergyRelated } from '../energy/related.js';
 import { InvoiceRelated } from '../invoicing/related.js';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
@@ -274,6 +275,7 @@ export default function BillingDetail() {
             <LoadingRows />
           ) : (
             <>
+              {isBill ? <ApprovalPanel kind='bills' id={row.id} /> : null}
               <div className='flex flex-wrap gap-2'>
                 <State
                   value={

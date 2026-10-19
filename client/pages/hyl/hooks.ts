@@ -1,5 +1,7 @@
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { useAuthorizationRevision } from '@nocobase/app-plugin-authorization/client';
 import { useApiClient, ApiClientError } from '@nocobase/app-client';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useCan } from '@nocobase/app-plugin-authorization/client';
 import { useTranslation } from '@nocobase/i18n/client';
 import type { Kind } from './model.js';
@@ -8,12 +10,20 @@ export function useBusinessQuery<T>(
   query?: Record<string, string | number>,
   enabled = true,
 ) {
-  const api = useApiClient();
+  const api = useApiClient(),
+    { session } = useAuthentication(),
+    revision = useAuthorizationRevision();
   return useQuery({
-    queryKey: ['hyl', path, query],
+    queryKey: ['hyl', path, query, session?.user.id, revision],
     queryFn: () => api.request<T>({ path, query }),
     enabled,
-    placeholderData: query ? keepPreviousData : undefined,
+    placeholderData: query
+      ? (data, previous) =>
+          previous?.queryKey[3] === session?.user.id &&
+          previous?.queryKey[4] === revision
+            ? data
+            : undefined
+      : undefined,
     refetchOnWindowFocus: false,
     retry: false,
   });
@@ -25,6 +35,12 @@ export function useErrorText() {
   const { t, i18n } = useTranslation();
   return (error: unknown): string => {
     if (error instanceof ApiClientError) {
+      const organizationKey = 'organization.errors.' + error.reason;
+      if (i18n.exists(organizationKey)) return t(organizationKey);
+      const approvalKey = 'approval.errors.' + error.reason;
+      if (i18n.exists(approvalKey)) return t(approvalKey);
+      const messageKey = 'messages.errors.' + error.reason;
+      if (i18n.exists(messageKey)) return t(messageKey);
       const procurementKey = 'procurement.errors.' + error.reason;
       if (i18n.exists(procurementKey)) return t(procurementKey);
       const inspectionKey = `inspection.errors.${error.reason}`;
@@ -51,4 +67,10 @@ export function useErrorText() {
     }
     return t('hyl.errors.network');
   };
+}
+
+export function useBusinessIdentity() {
+  const { session } = useAuthentication(),
+    revision = useAuthorizationRevision();
+  return [session?.user.id, revision] as const;
 }

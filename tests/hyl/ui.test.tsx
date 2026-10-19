@@ -20,6 +20,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useApiClient: () => api,
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => permission,
 }));
 const runtime = await createTestI18nRuntime({
@@ -160,3 +161,10 @@ it('preserves merchant and month drilldown filters in API requests and clears th
   await userEvent.click(screen.getAllByRole('button', { name: '清除筛选' })[0]);
   expect(router.state.location.search).toBe('');
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

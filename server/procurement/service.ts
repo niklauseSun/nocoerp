@@ -1,3 +1,10 @@
+import {
+  editable as approvalEditable,
+  approved as approvalApproved,
+  requires as approvalRequires,
+  latest as latestApproval,
+  refuse as approvalRefuse,
+} from '../approvals/gate.js';
 import { randomUUID, createHash } from 'node:crypto';
 import { ApiError } from '@nocobase/app-server/router';
 import type { DatabaseConnection, JsonValue } from '@nocobase/db';
@@ -492,7 +499,16 @@ export class ProcurementService {
       actor,
     );
   }
-  async act(access: Access, kind: Kind, id: string, input: Input) {
+  async act(
+    access: Access,
+    kind: Kind,
+    id: string,
+    input: Input,
+    approvalHooks?: {
+      before?: (c: DatabaseConnection, r: Row) => Promise<void>;
+      after?: (c: DatabaseConnection, r: Row) => Promise<void>;
+    },
+  ) {
     const initial = await this.row(kind, id);
     await this.scoped(access, kind, initial);
     const p = await this.scoped(
@@ -520,6 +536,19 @@ export class ProcurementService {
       p,
       async (c) => {
         const r = await this.row(kind, id, c);
+        if (kind === 'requests') {
+          if (approvalHooks?.before) await approvalHooks.before(c, r);
+          await approvalEditable(c, 'purchases', id);
+          if (input.action === 'approve' || input.action === 'return')
+            await approvalApproved(
+              this.hyl.db,
+              c,
+              'purchases',
+              id,
+              r.version,
+              input.action === 'return' ? 'rejected' : 'approved',
+            );
+        }
         this.check(r, input.expectedVersion);
         if (!(stages[kind][input.action] ?? []).includes(r.status))
           fail('PURCHASE_STAGE_INVALID');
@@ -807,7 +836,7 @@ export class ProcurementService {
           payload.lastDecision = input.note;
         // balances returns a fresh received map. Preserve it while appending action links.
         const merged = { ...(patch.payload ?? payload), ...payload };
-        return this.save(
+        const saved = await this.save(
           c,
           kind,
           r,
@@ -818,11 +847,35 @@ export class ProcurementService {
             ? { action: 'pay', amountCents: patch.paidCents }
             : input,
         );
+        if (kind === 'requests') {
+          if (approvalHooks?.after) await approvalHooks.after(c, saved);
+          if (
+            input.action === 'submit' &&
+            (await approvalRequires(this.hyl.db, c, 'purchases', id))
+          ) {
+            const approval = await latestApproval(c, 'purchases', id);
+            if (
+              approval?.status !== 'pending' ||
+              approval.sourceVersion !== saved.version
+            )
+              approvalRefuse('APPROVAL_REQUIRED');
+          }
+        }
+        return saved;
       },
     );
     return this.view(access, kind, r);
   }
   async blocked(kind: Kind, r: Row, action: string) {
+    if (kind === 'requests') {
+      const request = await latestApproval(this.c(), 'purchases', r.id);
+      if (request?.status === 'pending') return 'APPROVAL_SOURCE_LOCKED';
+      if (
+        ['submit', 'approve', 'return'].includes(action) &&
+        (await approvalRequires(this.hyl.db, this.c(), 'purchases', r.id))
+      )
+        return 'APPROVAL_REQUIRED';
+    }
     if (
       (kind === 'orders' && action === 'issue') ||
       (kind === 'requests' && ['submit', 'approve', 'convert'].includes(action))

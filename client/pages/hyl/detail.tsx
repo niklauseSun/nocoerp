@@ -1,3 +1,4 @@
+import { ApprovalPanel } from '../approvals/panel.js';
 import { RepairRelated } from '../repairs/related.js';
 import { EnergyRelated } from '../energy/related.js';
 import { InvoiceRelated } from '../invoicing/related.js';
@@ -136,7 +137,9 @@ export default function BusinessDetail({
         .map((action) => (
           <ActionLink key={action} kind={kind} action={action} />
         ))}
-      {kind === 'contracts' && row ? <LeaseActions row={row} /> : null}
+      {kind === 'contracts' && row && row.status !== 'draft' ? (
+        <LeaseActions row={row} />
+      ) : null}
       <Refresh
         busy={kind === 'merchants' ? fetching > 0 : result.isFetching}
         onClick={() => {
@@ -169,6 +172,9 @@ export default function BusinessDetail({
         <BusinessStatus status={row.status} />
       )}
       {kind !== 'merchants' ? actions : null}
+      {kind === 'contracts' ? (
+        <ApprovalPanel kind='contracts' id={row.id} />
+      ) : null}
       {kind === 'settlements' ? <SettlementDebt row={row} /> : null}
       {kind === 'settlements' && row.payload.rentChannel === 'bill' ? (
         <p className='text-sm text-muted-foreground'>
@@ -412,7 +418,7 @@ export default function BusinessDetail({
       {kind === 'settlements' ? (
         <SplitRelated kind='settlement' id={row.id} />
       ) : null}
-      {kind === 'contracts' ? (
+      {kind === 'contracts' && row.status !== 'draft' ? (
         <>
           <ContractAssetSnapshots id={row.id} />
           <LeasePanel row={row} />

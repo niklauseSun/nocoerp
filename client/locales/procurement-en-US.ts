@@ -146,6 +146,9 @@ export default {
     receive: 'Update receipt progress',
   },
   errors: {
+    APPROVAL_SOURCE_LOCKED:
+      'The document is in approval. Use approval details.',
+    APPROVAL_REQUIRED: 'Use the sequential approval entry.',
     PURCHASE_CHANGED: 'Record changed. Reload and review before submitting.',
     PURCHASE_NO_PAYABLE: 'No accepted payable is available.',
     PURCHASE_NOT_SETTLED: 'Full acceptance and full net payment are required.',

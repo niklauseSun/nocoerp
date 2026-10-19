@@ -1,3 +1,7 @@
+import organization from './organization-zh-CN.js';
+import finance from './finance-zh-CN.js';
+import approval from './approval-zh-CN.js';
+import messages from './messages-zh-CN.js';
 import procurement from './procurement-zh-CN.js';
 import inspection from './inspection-zh-CN.js';
 import repair from './repair-zh-CN.js';
@@ -17,6 +21,7 @@ const zhCN: AppResource = {
   // The template's own copy; see `./en-US.ts`.
   ...systemZhCN,
   hyl,
+  organization,
   assets,
   dashboard,
   lease,
@@ -28,6 +33,9 @@ const zhCN: AppResource = {
   repair,
   inspection,
   procurement,
+  messages,
+  approval,
+  finance,
 };
 
 export default zhCN;

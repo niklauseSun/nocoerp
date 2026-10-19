@@ -246,7 +246,14 @@ export interface Receipt {
   unusedCents: string;
   lifecycleVersion: number;
   statusChangedAt: string;
-  payload: { method: string; evidence: string; notes: string; actor: string };
+  payload: {
+    method: string;
+    evidence: string;
+    notes: string;
+    actor: string;
+    originalReference?: string;
+    cashierOrderId?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { Spinner } from '#components/ui/spinner';
 import { bindingDrafts } from './drafts.js';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
@@ -15,7 +16,7 @@ import { useAssetPermission, useAssetTree, useDraftWarning } from './hooks.js';
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router';
 import { useApiClient, useToaster, ApiClientError } from '@nocobase/app-client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
 import { RouteDialog } from '#components/route-dialog';
 import { Button } from '#components/ui/button';

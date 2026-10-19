@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { Related } from '../inspections/related.js';
 import { RepairRelated } from '../repairs/related.js';
 import { EnergyRelated } from '../energy/related.js';
@@ -13,7 +14,6 @@ import {
 } from 'react-router';
 import { useApiClient, ApiClientError } from '@nocobase/app-client';
 import {
-  useQuery,
   useQueryClient,
   useIsFetching,
   keepPreviousData,

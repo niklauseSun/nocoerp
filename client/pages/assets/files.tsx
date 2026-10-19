@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { Spinner } from '#components/ui/spinner';
 import { fileDrafts } from './drafts.js';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
@@ -10,7 +11,7 @@ import {
   type ClientFileRepository,
   type UploadOneResult,
 } from '@nocobase/app-plugin-file/client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
 import { RouteDialog } from '#components/route-dialog';
 import { Button } from '#components/ui/button';

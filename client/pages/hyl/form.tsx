@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from './hooks.js';
 import { AssetError as ErrorPanel } from '../assets/shared.js';
 import { ContractAssetsSelector } from '../assets/bindings.js';
 import { MerchantPicker } from './merchant-picker.js';
@@ -47,6 +48,7 @@ import {
 import { LoadingRows, Choice, DateField, RecordPicker } from './common.js';
 
 export default function BusinessForm() {
+  const businessIdentity = useBusinessIdentity();
   const toaster = useToaster();
   const { kind } = useOutletContext<{ kind: Kind }>(),
     { id } = useParams();
@@ -296,9 +298,12 @@ export default function BusinessForm() {
             }
           : { ...values, ...(kind === 'contracts' ? { assetIds } : {}) },
       });
-      client.setQueryData(['hyl', `${kind}/${response.data.id}`, undefined], {
-        data: response.data,
-      });
+      client.setQueryData(
+        ['hyl', `${kind}/${response.data.id}`, undefined, ...businessIdentity],
+        {
+          data: response.data,
+        },
+      );
       await client
         .invalidateQueries({ queryKey: ['hyl'] })
         .catch(() => undefined);

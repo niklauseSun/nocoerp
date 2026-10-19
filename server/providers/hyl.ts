@@ -1,3 +1,7 @@
+import { registerFinance } from '../finance/resources.js';
+import { approvalLifecycle, contractLifecycle } from '../approvals/model.js';
+import { parameters } from '../approvals/parameters.js';
+import { todoLifecycle } from '../messages/model.js';
 import { lifecycles as procurementLifecycles } from '../procurement/model.js';
 import { registerProcurement } from '../procurement/resources.js';
 import {
@@ -62,6 +66,16 @@ export default class HylProvider extends ServiceProvider<Application> {
       runtime.register(taskLifecycle);
       runtime.register(issueLifecycle);
       runtime.register(repairLifecycle);
+      runtime.register(todoLifecycle);
+      runtime.register(contractLifecycle);
+      runtime.register(approvalLifecycle, {
+        parameterConfiguration: {
+          store: parameters(db),
+          scope: ({ record }) => String(record?.scope),
+          legacyRecord: () => false,
+          snapshotRequired: (record) => record.status !== 'draft',
+        },
+      });
       for (const lifecycle of procurementLifecycles)
         runtime.register(lifecycle);
       runtime.register(meterLifecycle);
@@ -74,6 +88,7 @@ export default class HylProvider extends ServiceProvider<Application> {
     });
   }
   override async boot(): Promise<void> {
+    registerFinance(this.app.container.resolve(authorizationToken));
     registerProcurement(this.app.container.resolve(authorizationToken));
     registerInspections(this.app.container.resolve(authorizationToken));
     registerRepairs(this.app.container.resolve(authorizationToken));

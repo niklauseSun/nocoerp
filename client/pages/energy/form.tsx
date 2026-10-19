@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from '../hyl/hooks.js';
 import { LegacyPicker } from './legacy-picker.js';
 import { scalar, kindFrom, useEnergyCan } from './helpers.js';
 import { useState, useEffect, useRef } from 'react';
@@ -191,6 +192,7 @@ function Editor({
     navigate = useNavigate(),
     api = useApiClient(),
     cache = useQueryClient(),
+    identity = useBusinessIdentity(),
     toast = useToaster(),
     { t } = useTranslation(),
     w = useWork(),
@@ -567,6 +569,8 @@ function Editor({
           : response.data;
         cache.setQueriesData(
           {
+            predicate: (q) =>
+              q.queryKey[3] === identity[0] && q.queryKey[4] === identity[1],
             queryKey: [
               'hyl',
               (meterRecord ? 'energyMeters/' : 'energyReadings/') + initial.id,

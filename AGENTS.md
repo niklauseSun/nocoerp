@@ -119,6 +119,7 @@ When the built-in mechanism genuinely cannot express what is being asked, changi
 | [.agents/rules/components.md](.agents/rules/components.md)             | Adding or changing a component, a shadcn primitive, a UI Library item, or the visual design                  |
 | [.agents/rules/shell.md](.agents/rules/shell.md)                       | Changing layouts, the header, sidebar, breadcrumbs, the account menu or loading indicators                   |
 | [.agents/rules/build-and-deploy.md](.agents/rules/build-and-deploy.md) | Changing the build, packing a deployment, the Docker image, `CDN_BASE_URL`, or building for another platform |
+| [.agents/rules/organization.md](.agents/rules/organization.md)         | 组织树、成员、角色配置、部门继承与项目数据范围及授权缓存隔离                                                 |
 | [.agents/rules/assets.md](.agents/rules/assets.md)                     | 项目与资产分级台账、资产附件、历史记录、商户绑定与合同快照                                                   |
 | [.agents/rules/merchant-profile.md](.agents/rules/merchant-profile.md) | 商户档案、证照上传、恢复与清理，以及走访/联系记录                                                            |
 | [.agents/rules/billing.md](.agents/rules/billing.md)                   | 计费规则、账单、收款核销、押金抵扣与退租财务覆盖联动                                                         |
@@ -126,6 +127,9 @@ When the built-in mechanism genuinely cannot express what is being asked, changi
 | [.agents/rules/invoicing.md](.agents/rules/invoicing.md)               | Payment invoicing, simulated blue/credit notes, cashier/refund integration and invoice quotas                |
 | [.agents/rules/profit-sharing.md](.agents/rules/profit-sharing.md)     | 自动分账规则、来源快照、追回冲销与收银/结算联动                                                              |
 | [.agents/rules/energy.md](.agents/rules/energy.md)                     | 水电表、抄表审核、换表交接、用量出账与退租末读检查                                                           |
+| [.agents/rules/approvals.md](.agents/rules/approvals.md)               | 多级依次审批、配置快照、合同生效、账单发布及采购申请审批联动                                                 |
+| [.agents/rules/messages.md](.agents/rules/messages.md)                 | 消息通知、个人订阅、业务待办、读未读和持久化去重投递                                                         |
 | [.agents/rules/procurement.md](.agents/rules/procurement.md)           | 供应商档案、采购申请与订单、收货验收、模拟付款和工单/采购财务联动                                            |
 | [.agents/rules/repairs.md](.agents/rules/repairs.md)                   | 工单报修、派单处理、验收关闭及资产/商户/合同关联                                                             |
 | [.agents/rules/inspections.md](.agents/rules/inspections.md)           | Inspections, security, cleaning plans, execution, issues, rechecks and repair linkage                        |
+| [.agents/rules/finance.md](.agents/rules/finance.md)                   | 财务报表、原始资金台账、应收应付、押金余额及跨模块核对                                                       |

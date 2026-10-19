@@ -73,14 +73,29 @@ describe('app client routes', () => {
     expect(authorizations.filter((r) => !r.name.startsWith('hyl-'))).toEqual([
       { name: 'home', authorizedAs: null },
       { name: 'inbox', authorizedAs: null },
+      { name: 'financial-reports', authorizedAs: 'hyl-financial-reports' },
+      {
+        name: 'financial-report-source',
+        authorizedAs: 'hyl-financial-reports',
+      },
+      ...[
+        'approvals',
+        'approval-detail',
+        'approval-configs',
+        'approval-config-new',
+        'approval-config-detail',
+      ].map((name) => ({ name, authorizedAs: 'hyl-approvals' })),
+      { name: 'message-todos', authorizedAs: null },
+      { name: 'message-todo', authorizedAs: null },
+      { name: 'message-preferences', authorizedAs: null },
     ]);
   });
 
-  it('keeps the inbox out of the application navigation', () => {
-    // The inbox is reached from the header's inbox button, so it deliberately declares no menu entry.
+  it('registers the personal message center navigation', () => {
     expect(
-      applicationRoutes[0].routes.find((route) => route.name === 'inbox'),
-    ).not.toHaveProperty('navigation');
+      applicationRoutes[0].routes.find((route) => route.name === 'inbox')
+        ?.navigation,
+    ).toMatchObject({ title: 'messages.title' });
   });
 });
 
@@ -150,4 +165,14 @@ it('registers invoice navigation, local source and correction routes', () => {
     'hyl-contracts-invoice-config',
   ])
     expect(text).toContain(name);
+});
+
+it('organization settings and all child sections require organization read', () => {
+  const rows = pageAuthorizations(resolveRoutes().routes).filter((r) =>
+    r.name.startsWith('hyl-organization'),
+  );
+  expect(rows.length).toBe(7);
+  expect(
+    rows.every((r) => r.authorizedAs === 'settings:hyl.organization'),
+  ).toBe(true);
 });

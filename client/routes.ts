@@ -1,5 +1,8 @@
 import {
   Home,
+  Network,
+  ChartNoAxesCombined,
+  Bell,
   ShoppingCart,
   ClipboardCheck,
   Wrench,
@@ -21,6 +24,20 @@ import {
   type AppClientRouteDefinition,
 } from '@nocobase/app-client/plugins';
 
+function approvalChildren(prefix: string): AppClientRouteDefinition[] {
+  return [
+    {
+      name: prefix + '-approval-submit',
+      path: 'approvalSubmit',
+      componentLoader: () => import('./pages/approvals/submit.js'),
+    },
+    {
+      name: prefix + '-approval-detail',
+      path: 'approvalRequests/:approvalRequestId',
+      componentLoader: () => import('./pages/approvals/detail.js'),
+    },
+  ];
+}
 const procurementLoaders = {
   'receipts-leaf': () => import('./pages/procurement/receipts-leaf.js'),
   'receipts-form': () => import('./pages/procurement/receipts-form.js'),
@@ -73,6 +90,7 @@ function purchaseDetail(
     children: leaf
       ? []
       : [
+          ...(kind === 'requests' ? approvalChildren(prefix) : []),
           ...(kind === 'ledger'
             ? [
                 purchaseDetail(
@@ -553,6 +571,7 @@ const receiptOperations = (prefix: string): AppClientRouteDefinition[] => [
   ...invoiceRelatedRoutes(prefix + '-invoice'),
 ];
 const billOperations = (prefix: string) => [
+  ...approvalChildren(prefix),
   energyListRoute(prefix + '-energy', 'energyReadings', 'readings', true),
   ...invoiceRelatedRoutes(prefix + '-invoice'),
   ...['issue', 'void', 'deposit', 'receipt', 'reverseDeposit/:entryId'].map(
@@ -1133,6 +1152,7 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
         path: ':id',
         componentLoader: () => import('./pages/hyl/detail.js'),
         children: [
+          ...approvalChildren('hyl-contracts'),
           {
             name: 'hyl-contracts-billing-config',
             path: 'billingConfig',
@@ -1444,14 +1464,137 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     path: '/',
   },
   {
-    // Declares no navigation, so the application decides where its entry goes (for example a sidebar item with an
-    // unread badge). The plugin's API answers each person's own messages only, so the page needs no authorization of
-    // its own.
+    // Personal inbox APIs enforce ownership; linked business records retain domain authorization.
     authz: 'skip',
     auth: 'required',
     componentLoader: () => import('./pages/inbox.js'),
     name: 'inbox',
+    navigation: { title: 'messages.title', icon: Bell },
     path: '/inbox',
+  },
+  {
+    auth: 'required',
+    name: 'financial-reports',
+    path: '/financialReports',
+    componentLoader: () => import('./pages/financial-reports/index.js'),
+    authz: {
+      resource: { type: 'page', id: 'hyl-financial-reports' },
+      action: 'access',
+    },
+    navigation: { title: 'finance.title', icon: ChartNoAxesCombined },
+    children: [
+      {
+        name: 'financial-report-source',
+        path: ':kind/:sourceId',
+        componentLoader: () => import('./pages/financial-reports/detail.js'),
+      },
+    ],
+  },
+  {
+    name: 'approvals',
+    path: '/approvals',
+    auth: 'required',
+    authz: {
+      resource: { type: 'page', id: 'hyl-approvals' },
+      action: 'access',
+    },
+    navigation: { title: 'approval.title', icon: ClipboardCheck },
+    componentLoader: () => import('./pages/approvals/list.js'),
+    children: [
+      {
+        name: 'approval-detail',
+        path: 'requests/:approvalRequestId',
+        componentLoader: () => import('./pages/approvals/detail.js'),
+      },
+      {
+        name: 'approval-configs',
+        path: 'configs',
+        componentLoader: () => import('./pages/approvals/configs.js'),
+        children: [
+          {
+            name: 'approval-config-new',
+            path: 'new',
+            componentLoader: () => import('./pages/approvals/config-form.js'),
+          },
+          {
+            name: 'approval-config-detail',
+            path: ':approvalProjectId/:approvalKind',
+            componentLoader: () => import('./pages/approvals/config-form.js'),
+          },
+        ],
+      },
+    ],
+  },
+  {
+    authz: 'skip',
+    auth: 'required',
+    name: 'message-todos',
+    path: '/messageTodos',
+    componentLoader: () => import('./pages/messages/list.js'),
+    children: [
+      {
+        authz: 'skip',
+        auth: 'required',
+        name: 'message-todo',
+        path: ':messageTodoId',
+        componentLoader: () => import('./pages/messages/detail.js'),
+      },
+    ],
+  },
+  {
+    authz: 'skip',
+    auth: 'required',
+    name: 'message-preferences',
+    path: '/messagePreferences',
+    componentLoader: () => import('./pages/messages/preferences.js'),
+  },
+  {
+    name: 'hyl-organization',
+    path: '/organization',
+    auth: 'required',
+    authz: {
+      resource: { type: 'settings', id: 'hyl.organization' },
+      action: 'read',
+    },
+    navigation: { title: 'organization.title', icon: Network },
+    componentLoader: () => import('./pages/organization/index.js'),
+    children: [
+      {
+        name: 'hyl-organization-departments',
+        path: 'departments',
+        componentLoader: () => import('./pages/organization/departments.js'),
+        children: [
+          {
+            name: 'hyl-organization-department-new',
+            path: 'new',
+            componentLoader: () =>
+              import('./pages/organization/new-department.js'),
+          },
+        ],
+      },
+      {
+        name: 'hyl-organization-projects',
+        path: 'projects',
+        componentLoader: () => import('./pages/organization/projects.js'),
+      },
+      {
+        name: 'hyl-organization-roles',
+        path: 'roles',
+        componentLoader: () => import('./pages/organization/roles.js'),
+        children: [
+          {
+            name: 'hyl-organization-role',
+            path: ':roleKey',
+            componentLoader: () => import('./pages/organization/role-form.js'),
+          },
+        ],
+      },
+      {
+        name: 'hyl-organization-users',
+        path: 'users',
+        componentLoader: () => import('./pages/organization/users.js'),
+      },
+    ],
   },
   {
     auth: 'guest',

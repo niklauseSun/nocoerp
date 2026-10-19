@@ -1,3 +1,7 @@
+import organization from './organization.js';
+import finance from './finance.js';
+import approvals from './approvals.js';
+import messages from './messages.js';
 import procurement from './procurement.js';
 import inspections from './inspections.js';
 import repairs from './repairs.js';
@@ -29,6 +33,10 @@ const routes: readonly AppRouteContribution<Application>[] = [
   repairs,
   inspections,
   procurement,
+  messages,
+  approvals,
+  finance,
+  organization,
 ];
 
 export default routes;

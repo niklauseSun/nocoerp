@@ -1,12 +1,17 @@
+import { useTranslation } from '@nocobase/i18n/client';
+import { Nav } from './messages/common.js';
 import type { ReactElement } from 'react';
 
 import { InboxPage as InboxBlock } from '#extensions/nocobase-inbox/inbox-page';
 
-/**
- * Route `/inbox`: the UI Library's inbox block over the in-app notification plugin, reached from the header's inbox
- * button. Every message reads as a notification; to add decisions that wait on the viewer, pass a `source` and a
- * `registry`, as `client/extensions/nocobase-inbox/source.ts` describes.
- */
+/** Shared inbox keeps official persistent read/unread and realtime behavior. Business work has a separate, freshly authorized list. */
 export default function InboxPage(): ReactElement {
-  return <InboxBlock />;
+  const { t } = useTranslation();
+  return (
+    <InboxBlock
+      title={t('messages.title')}
+      description={t('messages.inboxDescription')}
+      listFooter={<Nav />}
+    />
+  );
 }

@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from '../hooks.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, Controller, useWatch } from 'react-hook-form';
 import {
@@ -59,6 +60,7 @@ const recordDrafts = new Map<
   }
 >();
 export default function MerchantRecordForm() {
+  const businessIdentity = useBusinessIdentity();
   const { id = '' } = useParams(),
     location = useLocation(),
     navigate = useNavigate();
@@ -299,7 +301,7 @@ export default function MerchantRecordForm() {
         ...(type === 'license' ? {} : { type }),
       };
       client.setQueryData<ProfileList>(
-        ['hyl', recordPath(id, type), query],
+        ['hyl', recordPath(id, type), query, ...businessIdentity],
         (old) => {
           const existed = old?.data.some((row) => row.id === saved.id);
           const rows = [

@@ -32,6 +32,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => ({ show: vi.fn() }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => ({ can: can.value }),
 }));
 const runtime = await createTestI18nRuntime({
@@ -176,3 +177,10 @@ it('retains a failed approval dialog and replays the same unknown request', asyn
   expect(writes).toHaveLength(2);
   expect(writes[0][0].json.requestId).toBe(writes[1][0].json.requestId);
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

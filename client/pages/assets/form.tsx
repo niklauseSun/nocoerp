@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -15,7 +16,7 @@ import { useAssetPermission, useAssetTree } from './hooks.js';
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useApiClient, ApiClientError, useToaster } from '@nocobase/app-client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';

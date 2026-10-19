@@ -1,3 +1,5 @@
+import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
+import { useAuthorizationRevision } from '@nocobase/app-plugin-authorization/client';
 import { useEffect } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useApiClient } from '@nocobase/app-client';
@@ -7,9 +9,11 @@ export function useAssetPermission(action: 'read' | 'write') {
   return useCan({ resource: { type: 'composite', id: 'hyl.assets' }, action });
 }
 export function useAssetTree(enabled = true) {
-  const api = useApiClient();
+  const api = useApiClient(),
+    { session } = useAuthentication(),
+    revision = useAuthorizationRevision();
   const query = useInfiniteQuery({
-    queryKey: ['hyl', 'asset-tree'],
+    queryKey: ['hyl', 'asset-tree', session?.user.id, revision],
     enabled,
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>

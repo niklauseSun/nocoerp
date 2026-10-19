@@ -1,3 +1,7 @@
+import organization from './organization-en-US.js';
+import finance from './finance-en-US.js';
+import approval from './approval-en-US.js';
+import messages from './messages-en-US.js';
 import procurement from './procurement-en-US.js';
 import inspection from './inspection-en-US.js';
 import repair from './repair-en-US.js';
@@ -19,6 +23,7 @@ const enUS = {
   // `./system/` so a template upgrade can replace it without touching the application's copy below.
   ...systemEnUS,
   hyl,
+  organization,
   assets,
   dashboard,
   lease,
@@ -30,6 +35,9 @@ const enUS = {
   repair,
   inspection,
   procurement,
+  messages,
+  approval,
+  finance,
   // The application's copy goes here, one group per feature. A shared group such as `navigation` is extended by
   // spreading the system one first, `navigation: { ...systemEnUS.navigation, orders: 'Orders' }`, since a group
   // written here replaces the system group of the same name rather than merging with it.

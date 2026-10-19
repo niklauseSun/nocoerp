@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from '../hyl/hooks.js';
 import { scalar, kindFrom, endpoint, useEnergyCan } from './helpers.js';
 import {
   Link,
@@ -64,6 +65,7 @@ function EnergyDetailContent({
   readOnly = false,
 }: { readOnly?: boolean } = {}) {
   useCoverFocus();
+  const businessIdentity = useBusinessIdentity();
   const { t } = useTranslation(),
     p = useParams(),
     l = useLocation(),
@@ -151,6 +153,7 @@ function EnergyDetailContent({
                 v,
               ]),
           ),
+          ...businessIdentity,
         ],
         { data: { ...row, ...r.data } },
       );

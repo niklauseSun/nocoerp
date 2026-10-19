@@ -140,6 +140,8 @@ export default {
     receive: '更新收货进度',
   },
   errors: {
+    APPROVAL_SOURCE_LOCKED: '单据审批中，请从审批详情处理。',
+    APPROVAL_REQUIRED: '请从多级审批入口提交和处理。',
     PURCHASE_CHANGED: '记录已变化，请重新载入并确认后再提交。',
     PURCHASE_NO_PAYABLE: '暂无可付款的已验收金额。',
     PURCHASE_NOT_SETTLED: '必须全部验收且净付款等于订单金额后才能结清。',

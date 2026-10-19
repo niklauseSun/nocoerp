@@ -1,3 +1,4 @@
+import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { Badge } from '#components/ui/badge';
 import {
   Tooltip,
@@ -9,11 +10,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useAssetPermission, useAssetTree } from './hooks.js';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import { useApiClient, ApiClientError } from '@nocobase/app-client';
-import {
-  useQuery,
-  useQueryClient,
-  keepPreviousData,
-} from '@tanstack/react-query';
+import { useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';

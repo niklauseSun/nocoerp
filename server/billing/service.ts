@@ -1,4 +1,8 @@
 import {
+  editable as approvalEditable,
+  approved as approvalApproved,
+} from '../approvals/gate.js';
+import {
   reserveSources,
   syncEnergyBill,
   registry,
@@ -569,6 +573,7 @@ export class BillingService {
       Object.assign({}, body, { billId: id, operation: 'edit' }),
       async (c, row) => {
         const bill = await this.findBill(id, c);
+        await approvalEditable(c, 'bills', id);
         this.version(bill, body.expectedVersion);
         if (bill.status !== 'draft') fail('BILLING_NOT_DRAFT');
         const managed = await c
@@ -666,6 +671,7 @@ export class BillingService {
     id: string,
     action: string,
     body: BillingOperation,
+    approvalCommit?: (c: DatabaseConnection, bill: Bill) => Promise<void>,
   ) {
     const original = await this.findBill(id);
     const permission =
@@ -685,8 +691,11 @@ export class BillingService {
       Object.assign({}, body, { billId: id, operation: action }),
       async (c, contract) => {
         let bill = await this.findBill(id, c);
+        if (approvalCommit) await approvalCommit(c, bill);
+        await approvalEditable(c, 'bills', id);
         this.version(bill, body.expectedVersion);
         if (action === 'issue') {
+          await approvalApproved(this.hyl.db, c, 'bills', id, bill.version);
           if (bill.status !== 'draft') fail('BILLING_NOT_DRAFT');
           const checked = await previewBill(
             c,

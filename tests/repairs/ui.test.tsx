@@ -32,6 +32,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => ({ show: vi.fn() }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: ({ action }: { action: string }) => ({
     can: can.value && (action !== 'report' || can.report),
   }),
@@ -276,3 +277,10 @@ it('gives a parent Back link without Retry for a missing action record', async (
     screen.queryByRole('button', { name: '重试', exact: true }),
   ).toBeNull();
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

@@ -1,3 +1,4 @@
+import { ApprovalPanel } from '../approvals/panel.js';
 import { endpoint, useProcurementCan, str } from './helpers.js';
 import { useEffect } from 'react';
 import {
@@ -166,6 +167,9 @@ export default function Detail({
           <LoadingRows />
         ) : (
           <>
+            {kind === 'requests' && !readOnly ? (
+              <ApprovalPanel kind='purchases' id={r.id} />
+            ) : null}
             {Object.entries(r.blockedActions).map(([a, reason]) => (
               <p key={a} className='text-sm text-muted-foreground'>
                 {t('procurement.actions.' + a)}：

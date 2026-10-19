@@ -30,6 +30,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useNavigationGuard: vi.fn(),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: ({ action }: { action: string }) => ({
     can: can.value && !can.denied.has(action),
   }),
@@ -305,3 +306,10 @@ it('unknown write outcome retries the same request, then success focuses the ret
   );
   expect(writes[0]).toEqual(writes[1]);
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

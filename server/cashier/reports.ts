@@ -14,6 +14,7 @@ export interface CashEvent {
   id: string;
   contractId: string;
   receiptId?: string;
+  reference?: string;
   number: string;
   at: string;
   date: string;
@@ -24,34 +25,15 @@ export interface CashEvent {
   amountCents: string;
 }
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
-const dayOf = (at: string) =>
+export const dayOf = (at: string) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(at));
-export async function reportPreview(
-  this: CashierService,
-  access: Access,
-  input: DayQuery,
-  prepared?: { connection: DatabaseConnection; ids: string[] },
-) {
-  let ids: string[];
-  const c = prepared?.connection ?? this.hyl.db.connection();
-  if (prepared) ids = prepared.ids;
-  else {
-    const policy = await this.hyl.policy(
-      access,
-      'contracts',
-      'cashierReconcileRead',
-    );
-    if (input.scope === 'authorized')
-      await this.hyl.policy(access, 'contracts', 'cashierReconcileAll');
-    ids = (
-      await c.repository<Row>('hylContracts').withPolicy(policy).findMany()
-    ).map((r) => String(r.id));
-  }
+/** Original cash ledger shared by daily reconciliation and financial reports. */
+export async function collectCashEvents(c: DatabaseConnection, ids: string[]) {
   const events: CashEvent[] = [];
   const receipts = await c.repository<Receipt>('hylReceipts').findMany({
       filter: buildFilter((f) =>
@@ -68,11 +50,7 @@ export async function reportPreview(
       ),
     });
   const add = (event: CashEvent) => {
-    if (
-      dayOf(event.at) === input.day &&
-      (input.scope === 'authorized' || event.actor === access.actor)
-    )
-      events.push(event);
+    events.push(event);
   };
   for (const r of receipts) {
     add({
@@ -80,6 +58,7 @@ export async function reportPreview(
       receiptId: r.id,
       contractId: r.contractId,
       number: r.number,
+      reference: text(r.payload.originalReference) || r.reference,
       at: r.createdAt,
       date: r.date,
       actor: String(r.payload.actor),
@@ -99,6 +78,7 @@ export async function reportPreview(
         receiptId: r.id,
         contractId: r.contractId,
         number: r.number,
+        reference: e.reference ?? '',
         at: e.createdAt,
         date: text(e.payload.date) || dayOf(e.createdAt),
         actor: String(e.payload.actor),
@@ -129,6 +109,7 @@ export async function reportPreview(
       id: `leaseEntry:${e.id}`,
       contractId: e.contractId,
       number: String(e.reference ?? e.id),
+      reference: e.reference ?? '',
       at: e.createdAt,
       date: text(e.payload.date) || dayOf(e.createdAt),
       actor: String(e.payload.actor),
@@ -154,6 +135,7 @@ export async function reportPreview(
       id: `splitTransfer:${e.id}`,
       contractId: e.contractId,
       number: e.reference ?? e.id,
+      reference: e.reference ?? '',
       at: e.createdAt,
       date: text(e.payload.date) || dayOf(e.createdAt),
       actor: String(e.payload.actor),
@@ -164,6 +146,34 @@ export async function reportPreview(
     });
   }
   events.sort((a, b) => a.id.localeCompare(b.id));
+  return events;
+}
+export async function reportPreview(
+  this: CashierService,
+  access: Access,
+  input: DayQuery,
+  prepared?: { connection: DatabaseConnection; ids: string[] },
+) {
+  let ids: string[];
+  const c = prepared?.connection ?? this.hyl.db.connection();
+  if (prepared) ids = prepared.ids;
+  else {
+    const policy = await this.hyl.policy(
+      access,
+      'contracts',
+      'cashierReconcileRead',
+    );
+    if (input.scope === 'authorized')
+      await this.hyl.policy(access, 'contracts', 'cashierReconcileAll');
+    ids = (
+      await c.repository<Row>('hylContracts').withPolicy(policy).findMany()
+    ).map((r) => String(r.id));
+  }
+  const events = (await collectCashEvents(c, ids)).filter(
+    (event) =>
+      dayOf(event.at) === input.day &&
+      (input.scope === 'authorized' || event.actor === access.actor),
+  );
   const channels: Record<
     string,
     {
@@ -197,7 +207,8 @@ export async function reportPreview(
       day: input.day,
       scope: input.scope,
       actor: input.scope === 'own' ? access.actor : '',
-      events,
+      // Reference metadata enriches finance drilldowns; preserve the existing daily snapshot fingerprint.
+      events: events.map(({ reference: _reference, ...event }) => event),
     }),
     events,
     channels,

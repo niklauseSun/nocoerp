@@ -32,6 +32,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => toast,
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: ({ action }: { action: string }) => ({
     can: can.value && (action !== 'report' || can.report),
   }),
@@ -283,3 +284,10 @@ it('explains scheduler pause and reports its named success without exposing raw 
     expect(toast.show).toHaveBeenCalledWith({ title: '暂停成功：“自动调度”' }),
   );
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

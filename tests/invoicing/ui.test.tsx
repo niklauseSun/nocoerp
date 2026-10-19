@@ -30,6 +30,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useNavigationGuard: vi.fn(),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => ({ can: can.value }),
 }));
 const runtime = await createTestI18nRuntime({
@@ -267,3 +268,10 @@ it('configuration list separates the contract, merchant, buyer and seller', asyn
   expect(screen.getByText('销方示例')).toBeVisible();
   expect(screen.queryByText('MUST NOT SHOW')).not.toBeInTheDocument();
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

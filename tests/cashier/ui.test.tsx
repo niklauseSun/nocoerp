@@ -31,6 +31,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useNavigationGuard: vi.fn(),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: ({ action }: { action: string }) => ({
     can: can.value && !can.denied.has(action),
   }),
@@ -287,3 +288,10 @@ it('refreshes both the source contract and its independent lease summary', async
   await screen.findByText('已结清归档');
   expect(summaries).toBe(2);
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

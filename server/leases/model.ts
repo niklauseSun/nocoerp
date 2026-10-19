@@ -84,7 +84,7 @@ export async function getLease(
       .findOne({ filter: { id: contract.id } })) ?? {
       id: contract.id,
       merchantId: contract.merchantId,
-      status: 'active',
+      status: contract.status === 'draft' ? 'draft' : 'active',
       version: 0,
       actualEnd: '',
       lifecycleVersion: 0,

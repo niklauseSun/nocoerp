@@ -31,6 +31,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useToaster: () => toaster,
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => ({ can: can.value }),
 }));
 const runtime = await createTestI18nRuntime({
@@ -387,3 +388,10 @@ it('renders and focuses indexed allocation errors and revalidates their row', as
   await user.type(amount, '20');
   expect(amount).toHaveAttribute('aria-invalid', 'false');
 });
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));

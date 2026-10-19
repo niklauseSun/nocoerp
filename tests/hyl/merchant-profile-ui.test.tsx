@@ -28,6 +28,7 @@ vi.mock('@nocobase/app-plugin-authentication/client', () => ({
   useAuthentication: () => ({ session: { user: { id: 'ui-test' } } }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => permission,
 }));
 const runtime = await createTestI18nRuntime({

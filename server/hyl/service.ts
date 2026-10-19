@@ -1,3 +1,10 @@
+import {
+  editable as approvalEditable,
+  contractRule,
+  refuse as approvalRefuse,
+} from '../approvals/gate.js';
+import { getAsset } from '../assets/transactions.js';
+import { isLeaf } from '../assets/schema.js';
 import { assertCashReference } from '../billing/accounting.js';
 import { syncContract } from '../profit-sharing/projection.js';
 import { checkExpense, configAt } from '../billing/accounting.js';
@@ -93,6 +100,12 @@ export class HylService {
       .withPolicy(policy)
       .findOne({ filter: { id } });
     if (!row) fail('RECORD_NOT_FOUND', 'NOT_FOUND');
+    if (
+      kind === 'contracts' &&
+      row.status === 'draft' &&
+      !['read', 'write'].includes(action)
+    )
+      approvalRefuse('APPROVAL_CONTRACT_DRAFT');
     return row as Row;
   }
   async list(access: Access, kind: Kind, input: ListInput) {
@@ -241,7 +254,9 @@ export class HylService {
         : undefined;
     return {
       ...record,
-      ...(kind === 'contracts' && !allowedLeaseActions.includes('depositRead')
+      ...(kind === 'contracts' &&
+      record.status !== 'draft' &&
+      !allowedLeaseActions.includes('depositRead')
         ? {
             payload: Object.fromEntries(
               Object.entries(record.payload).filter(
@@ -458,12 +473,14 @@ export class HylService {
         if (!user) fail('USER_NOT_FOUND', 'INVALID_ARGUMENT');
       }
       if (kind === 'contracts') {
+        if (id) await approvalEditable(c, 'contracts', id);
         const contracts = await c
           .repository<Row>(tables.contracts)
           .findMany({ filter: { merchantId: scalar(payload.merchantId) } });
         for (const r of contracts) {
           if (
             r.id !== id &&
+            r.status === 'active' &&
             String(r.payload.start) <= String(payload.end) &&
             (await effectiveEnd(c, r)) >= String(payload.start)
           )
@@ -522,6 +539,7 @@ export class HylService {
         for (const r of contracts) {
           const lease = await getLease(c, r);
           if (
+            r.status === 'active' &&
             String(r.payload.start) <= String(payload.date) &&
             (await effectiveEnd(c, r)) >= String(payload.date) &&
             lease.status !== 'closed'
@@ -544,7 +562,28 @@ export class HylService {
       if (kind === 'contracts')
         payload.number =
           old?.number ?? `HT${randomBytes(12).toString('hex').toUpperCase()}`;
+      const approvalRule =
+        kind === 'contracts'
+          ? await contractRule(this.db, c, payload.assetIds)
+          : null;
       const values = this.base(kind, payload, access.actor, merchant);
+      if (
+        kind === 'contracts' &&
+        old?.status === 'active' &&
+        approvalRule?.enabled
+      ) {
+        if (
+          await c
+            .repository('hylContractAssets')
+            .exists({ filter: { contractId: old.id } })
+        )
+          approvalRefuse('APPROVAL_ACTIVE_LOCKED');
+        await this.runtime.fire('hylContracts', old.id, 'prepareApproval', {
+          actor: { id: access.actor },
+          transaction: c,
+          expect: { version: old.lifecycleVersion },
+        });
+      }
       if (creationId) {
         values.id = creationId;
         values.merchantId = creationId;
@@ -592,7 +631,11 @@ export class HylService {
             transaction: c,
             expect: { version: old.lifecycleVersion },
           });
-      } else if (kind === 'revenueReports' || kind === 'expenses') {
+      } else if (
+        kind === 'revenueReports' ||
+        kind === 'expenses' ||
+        kind === 'contracts'
+      ) {
         // Creation is permitted only after checking both the business action and the actual scoped parent merchant.
         const created = await creationRuntime(
           this.db,
@@ -603,9 +646,28 @@ export class HylService {
           transaction: c,
         });
         result = created.record as unknown as Row;
+        if (kind === 'contracts' && !approvalRule?.enabled) {
+          await this.runtime.fire('hylContracts', result.id, 'activate', {
+            actor: { id: access.actor },
+            transaction: c,
+          });
+          result = await this.get(access, kind, result.id, 'read', c, policy);
+        }
       } else result = (await repo.createOne({ values })).record as Row;
+      if (kind === 'contracts') {
+        result = await this.get(access, kind, result.id, 'read', c, policy);
+        if (result.status === 'draft' && Array.isArray(payload.assetIds)) {
+          for (const aid of payload.assetIds) {
+            if (!assetAccess)
+              approvalRefuse('ACCESS_DENIED', 'PERMISSION_DENIED');
+            const a = await getAsset(c, String(aid), assetAccess);
+            if (!isLeaf(a.type)) approvalRefuse('ASSET_LEAF_REQUIRED');
+          }
+        }
+      }
       if (
         kind === 'contracts' &&
+        result.status === 'active' &&
         Array.isArray(payload.assetIds) &&
         (payload.assetIds.length ||
           (old &&
@@ -698,6 +760,8 @@ export class HylService {
         c,
         contractPolicy,
       );
+      if (contractRow.status !== 'active')
+        approvalRefuse('APPROVAL_CONTRACT_DRAFT');
       const contract = schemas.contracts.parse(contractRow.payload);
       const [periodStart, periodEnd] = periodFor(data.month, data.part);
       // Billing windows stay calendar-based; first and final periods charge only
@@ -836,7 +900,11 @@ export class HylService {
     id: string,
     action: string,
     body: ActionInput,
-    internal?: {connection:DatabaseConnection;policy:RepositoryPolicy;merchantPolicy:RepositoryPolicy},
+    internal?: {
+      connection: DatabaseConnection;
+      policy: RepositoryPolicy;
+      merchantPolicy: RepositoryPolicy;
+    },
   ): Promise<Row> {
     const permission =
       action === 'submit'
@@ -848,11 +916,14 @@ export class HylService {
             : 'review';
     // Authorization (including ownMerchant scope queries) uses the root connection.
     // Resolve it before acquiring SQLite's sole transaction connection.
-    const policy = internal?.policy ?? await this.policy(access, kind, permission);
-    const merchantPolicy = internal?.merchantPolicy ?? await this.policy(access, 'merchants', 'read');
+    const policy =
+      internal?.policy ?? (await this.policy(access, kind, permission));
+    const merchantPolicy =
+      internal?.merchantPolicy ??
+      (await this.policy(access, 'merchants', 'read'));
     if (action === 'confirm' && body.confirmation !== 'online')
       await this.policy(access, 'settlements', 'review');
-    const run = async (c:DatabaseConnection) => {
+    const run = async (c: DatabaseConnection) => {
       const record = await this.get(access, kind, id, permission, c, policy);
       const merchant = await this.get(
         access,
@@ -884,6 +955,7 @@ export class HylService {
         let covered = false;
         for (const contract of contracts)
           if (
+            contract.status === 'active' &&
             String(contract.payload.start) <= record.date &&
             (await effectiveEnd(c, contract)) >= record.date &&
             (await getLease(c, contract)).status !== 'closed'
@@ -916,7 +988,7 @@ export class HylService {
       if (action === 'dispute' && merchant.userId !== access.actor)
         fail('MERCHANT_CONFIRMATION_REQUIRED', 'PERMISSION_DENIED');
       if (action === 'pay') {
-        await assertCashReference(c,record.merchantId,body.reference);
+        await assertCashReference(c, record.merchantId, body.reference);
         if (!body.reference || !body.date || cents(body.amount) <= 0n)
           fail('PAYMENT_REQUIRED', 'INVALID_ARGUMENT');
         if (
@@ -986,7 +1058,13 @@ export class HylService {
             });
         }
       }
-      if(kind==='settlements')await syncContract(c,this,String(record.payload.contractId),access.actor);
+      if (kind === 'settlements')
+        await syncContract(
+          c,
+          this,
+          String(record.payload.contractId),
+          access.actor,
+        );
       void result;
       await this.event(c, updated.record, access, action, body);
       return updated.record;

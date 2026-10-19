@@ -1,3 +1,4 @@
+import { useBusinessIdentity } from './hooks.js';
 import { DiscardDialog } from './discard-dialog.js';
 import { drafts } from './drafts.js';
 import { useAuthentication } from '@nocobase/app-plugin-authentication/client';
@@ -39,6 +40,7 @@ import { ErrorPanel, Choice, DateField, LoadingRows } from './common.js';
 import type { Kind, BusinessRow, Values } from './model.js';
 
 export default function BusinessAction() {
+  const businessIdentity = useBusinessIdentity();
   const toaster = useToaster();
   const { kind } = useOutletContext<{ kind: Kind }>(),
     { id } = useParams();
@@ -131,9 +133,12 @@ export default function BusinessAction() {
           expectedVersion: row.version,
         },
       });
-      client.setQueryData(['hyl', `${kind}/${id}`, undefined], {
-        data: response.data,
-      });
+      client.setQueryData(
+        ['hyl', `${kind}/${id}`, undefined, ...businessIdentity],
+        {
+          data: response.data,
+        },
+      );
       await client.invalidateQueries({ queryKey: ['hyl'] });
       toaster.show({
         title: t('hyl.copy.done', { name: row.number }),
