@@ -1,6 +1,12 @@
 import type { AppServerResource } from './en-US.js';
 const zhCN: AppServerResource = {
   messages: {
+    tenantNotice: '有公告或政策通知待阅读，请在租户服务中查看。',
+    tenantServiceRequest: '有租户诉求待处理，请在租户服务中查看。',
+    tenantServiceOverdue: '有租户诉求已超过办理期限，请在租户服务中跟进。',
+    operationFollowup: '有业务跟进已到计划日期，请在业务待办中查看。',
+    settlementConfirm:
+      '有结算单待确认，请在业务待办中查看并办理线上或线下确认。',
     title: '业务待办提醒',
     contractExpired: '有合同已到期，请在业务待办中查看并办理续租或退租。',
     contractExpiry: '有合同即将到期，请在业务待办中查看并办理续租或退租。',

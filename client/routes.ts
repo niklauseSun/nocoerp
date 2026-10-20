@@ -910,6 +910,100 @@ function inspectionList(
 
 const appRoutes: AppClientRouteContribution = defineAppRoutes([
   {
+    name: 'hyl-tenant-operations',
+    path: '/tenantOperations',
+    auth: 'required',
+    authz: {
+      resource: { type: 'page', id: 'hyl-tenant-operations' },
+      action: 'access',
+    },
+    navigation: { title: 'operations.title', icon: ClipboardCheck },
+    componentLoader: () => import('./pages/tenant-operations/index.js'),
+    children: [
+      {
+        name: 'hyl-tenant-operations-followup',
+        path: 'followup/:kind/:sourceId',
+        componentLoader: () => import('./pages/tenant-operations/action.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-import',
+        path: 'import',
+        componentLoader: () =>
+          import('./pages/tenant-operations/bank-import.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-batch-new',
+        path: 'batch/new',
+        componentLoader: () =>
+          import('./pages/tenant-operations/batch-form.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-batch-detail',
+        path: 'batch/:batchId',
+        componentLoader: () =>
+          import('./pages/tenant-operations/batch-detail.js'),
+        children: [
+          {
+            name: 'hyl-batch-contract-source',
+            path: 'contract/:id',
+            componentLoader: () =>
+              import('./pages/tenant-operations/batch-source.js'),
+          },
+          {
+            name: 'hyl-batch-settlement-source',
+            path: 'settlement/:id',
+            componentLoader: () =>
+              import('./pages/tenant-operations/batch-source.js'),
+            children: ['review', 'confirm', 'dispute', 'cancel', 'pay'].map(
+              (action) => ({
+                name: 'hyl-batch-settlement-' + action,
+                path: action,
+                componentLoader: () => import('./pages/hyl/action.js'),
+              }),
+            ),
+          },
+        ],
+      },
+      {
+        name: 'hyl-tenant-operations-service-new',
+        path: 'service/new',
+        componentLoader: () =>
+          import('./pages/tenant-operations/service-form.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-service-detail',
+        path: 'service/:serviceId',
+        componentLoader: () =>
+          import('./pages/tenant-operations/service-detail.js'),
+        children: [
+          {
+            name: 'hyl-tenant-operations-service-action',
+            path: 'action/:serviceAction',
+            componentLoader: () =>
+              import('./pages/tenant-operations/service-action.js'),
+          },
+        ],
+      },
+      {
+        name: 'hyl-tenant-operations-bank-resolve',
+        path: 'resolve/:bankRowId',
+        componentLoader: () =>
+          import('./pages/tenant-operations/bank-resolution.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-bank-batch',
+        path: 'matchBatch',
+        componentLoader: () =>
+          import('./pages/tenant-operations/bank-batch.js'),
+      },
+      {
+        name: 'hyl-tenant-operations-match',
+        path: 'match/:bankRowId',
+        componentLoader: () => import('./pages/tenant-operations/action.js'),
+      },
+    ],
+  },
+  {
     name: 'hyl-procurement',
     path: '/procurement',
     auth: 'required',
@@ -1458,7 +1552,7 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     path: '/workbench',
     auth: 'required',
     authz: 'skip',
-    navigation: { title: 'mobile.title', icon: Home },
+    // Direct/mobile entry: keep the route accessible without adding a sidebar item.
     componentLoader: () => import('./pages/workbench/index.js'),
     children: [
       {
@@ -1593,6 +1687,17 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
             path: 'new',
             componentLoader: () =>
               import('./pages/organization/new-department.js'),
+          },
+          {
+            name: 'hyl-organization-member-new',
+            path: 'members/new',
+            componentLoader: () => import('./pages/organization/new-member.js'),
+          },
+          {
+            name: 'hyl-organization-department-edit',
+            path: 'edit/:departmentId',
+            componentLoader: () =>
+              import('./pages/organization/edit-department.js'),
           },
         ],
       },

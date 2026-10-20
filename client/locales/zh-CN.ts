@@ -1,3 +1,4 @@
+import operations from './operations-zh-CN.js';
 import mobile from './mobile-zh-CN.js';
 import organization from './organization-zh-CN.js';
 import finance from './finance-zh-CN.js';
@@ -21,9 +22,17 @@ import systemZhCN from './system/zh-CN.js';
 const zhCN: AppResource = {
   // The template's own copy; see `./en-US.ts`.
   ...systemZhCN,
+  navigationGroups: {
+    work: '工作入口',
+    tenants: '租户经营',
+    property: '物业服务',
+    finance: '收支财务',
+    administration: '系统管理',
+  },
   hyl,
   organization,
   mobile,
+  operations,
   assets,
   dashboard,
   lease,

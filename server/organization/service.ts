@@ -80,9 +80,19 @@ export class OrganizationService {
         ]),
       ],
       names: Record<string, string> = {};
+    const memberProfiles: Record<
+      string,
+      { email: string; disabledAt: string | null }
+    > = {};
     for (const id of people) {
       const user = await this.users.get(id);
-      if (user) names[id] = user.name;
+      if (user) {
+        names[id] = user.name;
+        memberProfiles[id] = {
+          email: user.email,
+          disabledAt: user.disabledAt ? String(user.disabledAt) : null,
+        };
+      }
     }
     for (const row of await this.db
       .repository<{ id: string; name: string; type: string }>('hylAssets')
@@ -91,7 +101,7 @@ export class OrganizationService {
         select: (s) => s.fields('id', 'name'),
       }))
       names[String(row.id)] = String(row.name);
-    return { departments, members, projects, names };
+    return { departments, members, projects, names, memberProfiles };
   }
 
   async user(id: string, c: DatabaseConnection) {

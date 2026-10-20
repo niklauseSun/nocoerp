@@ -1,5 +1,17 @@
 export default {
-  title: 'Mobile workbench',
+  actionUnavailable:
+    'This record has been processed or the confirmation method is unavailable. Refresh or go back.',
+  revenueReports: 'Revenue reports',
+  settlements: 'Settlement confirmation',
+  tenantService: 'Tenant services',
+  reportBasics: 'Report details',
+  reportAmounts: 'Revenue amounts',
+  reportEvidence: 'Evidence',
+  reportHelp: 'Save first, then upload evidence and submit for review.',
+  confirmSummary:
+    'Review revenue, deductions and payout before confirming or disputing.',
+
+  title: 'Workbench',
   loading: 'Loading',
   description: 'Review your todos, approvals and field work.',
   navigation: 'Mobile navigation',

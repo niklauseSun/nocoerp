@@ -214,7 +214,10 @@ export class FinanceService {
           at: String(p.payload.at),
           date: String(p.payload.date),
           actor: String(p.payload.actor),
-          method: 'unclassified',
+          method:
+            typeof p.payload.method === 'string'
+              ? p.payload.method
+              : 'unclassified',
           kind: 'payout',
           category: 'settlement',
           amountCents: String(-cents(String(p.payload.amount))),

@@ -1,3 +1,4 @@
+import operations from './operations-en-US.js';
 import mobile from './mobile-en-US.js';
 import organization from './organization-en-US.js';
 import finance from './finance-en-US.js';
@@ -23,9 +24,17 @@ const enUS = {
   // The template's own copy: the shell, the sign-in pages, shared components and the homepage. Keep it in
   // `./system/` so a template upgrade can replace it without touching the application's copy below.
   ...systemEnUS,
+  navigationGroups: {
+    work: 'Workspace',
+    tenants: 'Tenant operations',
+    property: 'Property services',
+    finance: 'Finance and procurement',
+    administration: 'Administration',
+  },
   hyl,
   organization,
   mobile,
+  operations,
   assets,
   dashboard,
   lease,

@@ -77,6 +77,10 @@ export default defineApiRoutes<Application>((app) => {
       'organizationSnapshot',
       z.object({
         names: z.record(z.string(), z.string()),
+        memberProfiles: z.record(
+          z.string(),
+          z.object({ email: z.string(), disabledAt: z.string().nullable() }),
+        ),
         departments: z.array(departmentSchema),
         members: z.array(member),
         projects: z.array(project),

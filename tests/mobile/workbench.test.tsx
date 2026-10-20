@@ -106,7 +106,7 @@ it('shows bounded real data and all authorized original feature destinations', a
     'href',
     '/energy/readings',
   );
-  expect(within(nav).getAllByRole('button')).toHaveLength(6);
+  expect(within(nav).getAllByRole('button')).toHaveLength(9);
   expect(api.request).toHaveBeenCalledWith(
     expect.objectContaining({
       path: 'messageTodos',
@@ -166,15 +166,13 @@ it('opens todo over workbench and returns to the same workbench URL', async () =
   expect(back).toHaveAttribute('href', '/workbench?retained=1');
   await user.click(back);
   await waitFor(() =>
-    expect(screen.getByRole('heading', { name: '手机工作台' })).toBeVisible(),
+    expect(screen.getByRole('heading', { name: '工作台' })).toBeVisible(),
   );
 });
 
 it('lands on the phone workbench without requesting desktop dashboard data', async () => {
   mount('/');
-  expect(
-    await screen.findByRole('heading', { name: '手机工作台' }),
-  ).toBeVisible();
+  expect(await screen.findByRole('heading', { name: '工作台' })).toBeVisible();
   expect(
     api.request.mock.calls.some(([x]) => x.path.includes('dashboard')),
   ).toBe(false);
@@ -187,7 +185,7 @@ it('renders English workbench copy with real counts', async () => {
   });
   mount('/workbench', english);
   expect(
-    await screen.findByRole('heading', { name: 'Mobile workbench' }),
+    await screen.findByRole('heading', { name: 'Workbench' }),
   ).toBeVisible();
   expect(await screen.findByText('9 total')).toBeVisible();
 });
@@ -207,4 +205,31 @@ it('hides protected entries and requests while authorization is pending', async 
   expect(
     screen.queryByText('当前账号没有审批查看权限，请联系管理员按岗位授权。'),
   ).not.toBeInTheDocument();
+});
+
+it('shows tenant destinations only with both original page and data permissions', async () => {
+  state.denied = [
+    'hyl-revenueReports',
+    'hyl.settlements',
+    'hyl-tenant-operations',
+  ];
+  mount();
+  const nav = await screen.findByRole('navigation', { name: '常用功能' });
+  for (const name of ['营业报送', '结算确认', '租户服务'])
+    expect(
+      within(nav).queryByRole('button', { name, exact: true }),
+    ).not.toBeInTheDocument();
+});
+it('offers report, pending settlement and service destinations in Chinese', async () => {
+  mount();
+  const nav = await screen.findByRole('navigation', { name: '常用功能' });
+  expect(
+    within(nav).getByRole('button', { name: '营业报送', exact: true }),
+  ).toHaveAttribute('href', '/revenueReports');
+  expect(
+    within(nav).getByRole('button', { name: '结算确认', exact: true }),
+  ).toHaveAttribute('href', '/settlements?status=confirmation');
+  expect(
+    within(nav).getByRole('button', { name: '租户服务', exact: true }),
+  ).toHaveAttribute('href', '/tenantOperations?view=tenantService');
 });

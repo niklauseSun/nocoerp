@@ -1,3 +1,4 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { LeaseDateFilter } from './lease/date-filter.js';
 import { LeaseStatus } from './lease/status.js';
 import {
@@ -15,6 +16,7 @@ import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Alert, AlertDescription } from '#components/ui/alert';
+import { StatusBadge } from '#components/status-badge';
 import { BusinessStatus } from './status.js';
 import {
   Table,
@@ -299,7 +301,35 @@ export function BusinessList({ kind }: { kind: Kind }) {
         </Empty>
       ) : (
         <>
-          <div className='overflow-x-auto rounded-lg border'>
+          <ResponsiveTable
+            enabled={['revenueReports', 'settlements'].includes(kind)}
+            labels={['number', 'name', 'date', 'amount', 'status', 'updatedAt']
+              .map((k) => t('hyl.fields.' + k))
+              .concat(t('mobile.actions'))}
+            sort={
+              <MobileSort
+                value={
+                  orderBy.endsWith(':desc')
+                    ? '-' + orderBy.split(':')[0]
+                    : orderBy.split(':')[0]
+                }
+                onChange={(v) =>
+                  update(
+                    'orderBy',
+                    v.replace(/^-/, '') +
+                      ':' +
+                      (v.startsWith('-') ? 'desc' : 'asc'),
+                  )
+                }
+                fields={['date', 'amountCents', 'updatedAt'].map((k) => ({
+                  value: k,
+                  label: t(
+                    'hyl.fields.' + (k === 'amountCents' ? 'amount' : k),
+                  ),
+                }))}
+              />
+            }
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -396,14 +426,16 @@ export function BusinessList({ kind }: { kind: Kind }) {
                         <LeaseStatus status={row.leaseState ?? 'active'} />
                       ) : row.status === 'due' &&
                         row.debtRemaining !== undefined ? (
-                        t(
-                          Number(row.debtRemaining) === 0
-                            ? 'lease.collected'
-                            : Number(row.debtRemaining) <
-                                -Number(row.amountCents) / 100
-                              ? 'lease.partialCollection'
-                              : 'lease.pendingCollection',
-                        )
+                        <StatusBadge tone='info'>
+                          {t(
+                            Number(row.debtRemaining) === 0
+                              ? 'lease.collected'
+                              : Number(row.debtRemaining) <
+                                  -Number(row.amountCents) / 100
+                                ? 'lease.partialCollection'
+                                : 'lease.pendingCollection',
+                          )}
+                        </StatusBadge>
                       ) : (
                         <BusinessStatus status={row.status} />
                       )}
@@ -454,7 +486,7 @@ export function BusinessList({ kind }: { kind: Kind }) {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTable>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <p className='text-sm text-muted-foreground'>
               {t('hyl.copy.count', { total: result.data.meta.total, page })}

@@ -1,3 +1,4 @@
+import { buildRouteNavigation } from '../../client/routing/route-navigation.js';
 import {
   resolveAppClientContributions,
   type AppClientRegisteredRoute,
@@ -63,6 +64,7 @@ describe('app client routes', () => {
       'energy',
       'repairs',
       'inspections',
+      'tenant-operations',
     ]) {
       const own = authorizations.filter((r) =>
         r.name.startsWith(`hyl-${kind}`),
@@ -174,8 +176,26 @@ it('organization settings and all child sections require organization read', () 
   const rows = pageAuthorizations(resolveRoutes().routes).filter((r) =>
     r.name.startsWith('hyl-organization'),
   );
-  expect(rows.length).toBe(7);
+  expect(rows.length).toBe(9);
   expect(
     rows.every((r) => r.authorizedAs === 'settings:hyl.organization'),
+  ).toBe(true);
+});
+
+it('keeps workbench accessible by URL without exposing it in sidebar navigation', () => {
+  const routes = resolveRoutes().routes;
+  const workbench = routes.find((r) => r.name === 'mobile-workbench');
+  expect(workbench).toMatchObject({
+    path: '/workbench',
+    auth: 'required',
+    authz: 'skip',
+    componentLoader: expect.any(Function),
+  });
+  expect(workbench?.navigation).toBeUndefined();
+  const menu = JSON.stringify(buildRouteNavigation(routes, new Set()));
+  expect(menu).not.toContain('mobile-workbench');
+  expect(menu).not.toContain('/workbench');
+  expect(
+    workbench?.children?.some((r) => r.name === 'mobile-workbench-todo'),
   ).toBe(true);
 });

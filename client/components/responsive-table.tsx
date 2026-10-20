@@ -20,14 +20,17 @@ export function ResponsiveTable({
   labels,
   titleIndex = 0,
   sort,
+  enabled = true,
 }: {
   children: Node;
   labels: string[];
   titleIndex?: number;
   sort?: ReactNode;
+  enabled?: boolean;
 }) {
   const mobile = useIsMobile();
-  if (!mobile) return <div className='overflow-x-auto'>{children}</div>;
+  if (!mobile || !enabled)
+    return <div className='overflow-x-auto'>{children}</div>;
   const body = nodes(children.props.children).find((x) => x.type === TableBody);
   return (
     <div className='flex min-w-0 flex-col gap-3'>

@@ -1,6 +1,46 @@
 export default {
+  edit: '编辑',
+
+  editDepartment: '编辑部门',
+  departmentActions: '{{name}}的部门操作',
+  editDepartmentMissing: '该部门不存在，请关闭弹窗后重新选择。',
+  saveBeforeDepartmentStatus: '请先保存或取消当前编辑，再调整部门启停用状态。',
+
+  add: '添加',
+
+  memberInDepartment: '{{name}} · {{department}}',
+  selectMemberHelp:
+    '选择账号后可添加成员；本部门已有成员和已停用账号不会显示。',
+  noEligibleMembersOnPage: '本页没有可添加的账号，请调整搜索条件或翻页查看。',
+
+  addMemberToDepartment: '为“{{name}}”添加成员',
+  memberDepartmentRequired: '请返回列表，选择要添加成员的部门。',
+
+  addDepartmentMember: '添加成员',
+  setPrimaryDepartment: '设为主部门',
+  unsetPrimaryDepartment: '取消主部门',
+
+  searchEmployees: '按员工姓名或邮箱搜索',
+  tablePage: '第 {{page}} / {{total}} 页，共 {{count}} 人',
+  previousPage: '上一页',
+  nextPage: '下一页',
+  employeeActions: '{{name}}的操作',
+
+  collapseDepartment: '收起 {{name}}',
+  expandDepartment: '展开 {{name}}',
+  memberCount: '{{count}} 名直属成员',
+  departmentMembers: '{{name}} · 员工列表',
+  employeeName: '员工姓名',
+  membershipType: '部门归属',
+  secondaryDepartment: '兼属部门',
+  actions: '操作',
+  unavailable: '暂无信息',
+  manageMembers: '添加或调整部门成员',
+  addMemberHelp:
+    '以下是可选择添加的账号，不是本部门现有员工。请选择账号后保存。',
+
   emptyMembersHelp:
-    '有维护权限时，可在下方选择用户并添加成员；否则请联系组织管理员。',
+    '有维护权限时，点击“添加成员”选择账号；否则请联系组织管理员。',
   emptyProjectsHelp:
     '有授权权限时，可在下方选择项目和用户或部门；否则请联系组织管理员。',
   emptyRolesHelp:

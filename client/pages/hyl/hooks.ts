@@ -35,6 +35,8 @@ export function useErrorText() {
   const { t, i18n } = useTranslation();
   return (error: unknown): string => {
     if (error instanceof ApiClientError) {
+      const opsKey = 'operations.errors.' + error.reason;
+      if (i18n.exists(opsKey)) return t(opsKey);
       const organizationKey = 'organization.errors.' + error.reason;
       if (i18n.exists(organizationKey)) return t(organizationKey);
       const approvalKey = 'approval.errors.' + error.reason;

@@ -47,6 +47,18 @@ test('organization administration, inherited and direct roles, project isolation
     demo = await runOrganizationDemo(org, hyl, access, { password: pwd }),
     a = await signIn(testApp, { email: demo.accounts[1].email, password: pwd }),
     b = await signIn(testApp, { email: demo.accounts[2].email, password: pwd });
+  const snapshotResponse = await admin.fetch('/organization');
+  expect(snapshotResponse.status).toBe(200);
+  const snapshotBody = await snapshotResponse.json();
+  for (const employee of demo.accounts) {
+    expect(snapshotBody.data.memberProfiles[employee.id]).toEqual({
+      email: employee.email,
+      disabledAt: null,
+    });
+    expect(
+      Object.keys(snapshotBody.data.memberProfiles[employee.id]).sort(),
+    ).toEqual(['disabledAt', 'email']);
+  }
   for (const u of demo.accounts) {
     const scoped = await accessFor(org, u.id);
     expect(

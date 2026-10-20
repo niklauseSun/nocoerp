@@ -56,8 +56,10 @@ export interface Line {
   at: string;
   date: string;
   reference: string;
+  method: string;
   amountCents: string;
   appliedCents: string;
+  cashAppliedCents?: string;
   remainingCents: string;
   openingCents: string;
   movementCents: string;
@@ -84,8 +86,10 @@ export const lineSchema = z.object({
   at: z.string(),
   date: z.string(),
   reference: z.string(),
+  method: z.string(),
   amountCents: integerCents,
   appliedCents: integerCents,
+  cashAppliedCents: integerCents.optional(),
   remainingCents: integerCents,
   openingCents: integerCents,
   movementCents: integerCents,

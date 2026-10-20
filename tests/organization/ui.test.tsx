@@ -22,6 +22,8 @@ import { ApiClientError } from '@nocobase/app-client';
 import zh from '../../client/locales/zh-CN.js';
 import Departments from '../../client/pages/organization/departments.js';
 import NewDepartment from '../../client/pages/organization/new-department.js';
+import NewMember from '../../client/pages/organization/new-member.js';
+import EditDepartment from '../../client/pages/organization/edit-department.js';
 import Projects from '../../client/pages/organization/projects.js';
 import RoleForm from '../../client/pages/organization/role-form.js';
 import { useBusinessQuery } from '../../client/pages/hyl/hooks.js';
@@ -91,6 +93,8 @@ function mount(el: React.ReactNode, path = '/organization/departments') {
           <Routes>
             <Route path='/organization/departments' element={<Departments />}>
               <Route path='new' element={<NewDepartment />} />
+              <Route path='members/new' element={<NewMember />} />
+              <Route path='edit/:departmentId' element={<EditDepartment />} />
             </Route>
             <Route path='/organization/users' element={<Users />} />
             <Route path='/organization/projects' element={<Projects />} />
@@ -119,16 +123,12 @@ afterEach(cleanup);
 it('renders departments and read-only cards without mutation controls', async () => {
   state.can = false;
   mount(<Departments />);
-  expect(
-    await screen.findByText('演示部门', {
-      selector: 'div[data-slot="card-title"]',
-    }),
-  ).toBeVisible();
+  expect(await screen.findByRole('link', { name: /演示部门/ })).toBeVisible();
   expect(
     screen.queryByRole('button', { name: '保存', exact: true }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('button', { name: '添加或更新成员' }),
+    screen.queryByRole('button', { name: '添加成员' }),
   ).not.toBeInTheDocument();
 });
 it('retains draft on server rejection and submits exact department version', async () => {
@@ -140,7 +140,7 @@ it('retains draft on server rejection and submits exact department version', asy
         )
       : Promise.resolve(path === 'organization' ? snapshot : options),
   );
-  mount(<Departments />);
+  mount(<Departments />, '/organization/departments/edit/d');
   await screen.findByLabelText('名称 *');
   await user.clear(screen.getByLabelText('名称 *'));
   await user.type(screen.getByLabelText('名称 *'), '新名称');
@@ -242,7 +242,9 @@ it('permissions revision removes cached direct asset data even with pagination c
   expect(screen.queryByText('old grant only')).not.toBeInTheDocument();
 });
 it('IME composition does not send partial pinyin to the member search', async () => {
+  const user = userEvent.setup();
   mount(<Departments />);
+  await user.click(await screen.findByRole('button', { name: '添加成员' }));
   const input = await screen.findByPlaceholderText('按姓名或邮箱搜索用户');
   fireEvent.compositionStart(input);
   fireEvent.change(input, { target: { value: 'zhong' } });
@@ -426,7 +428,10 @@ it('keeps rejected member removal feedback inside the named confirmation', async
   );
   mount(<Departments />);
   await user.click(
-    await screen.findByRole('button', { name: '移除', exact: true }),
+    await screen.findByRole('button', { name: '演示用户的操作' }),
+  );
+  await user.click(
+    await screen.findByRole('menuitem', { name: '移除', exact: true }),
   );
   const dialog = screen.getByRole('alertdialog');
   expect(within(dialog).getByRole('heading').textContent).toContain('演示用户');
@@ -464,7 +469,7 @@ it('maps rejected parent selection inline and keeps its draft', async () => {
         )
       : Promise.resolve(path === 'organization' ? snapshot : options),
   );
-  mount(<Departments />);
+  mount(<Departments />, '/organization/departments/edit/d');
   await user.click(
     await screen.findByRole('button', { name: '保存', exact: true }),
   );
@@ -555,7 +560,7 @@ it('reloads stale department only after confirming discard and replaces its draf
             : options,
         ),
   );
-  mount(<Departments />);
+  mount(<Departments />, '/organization/departments/edit/d');
   const name = await screen.findByLabelText('名称 *');
   await user.clear(name);
   await user.type(name, '未保存草稿');
@@ -573,5 +578,619 @@ it('reloads stale department only after confirming discard and replaces its draf
   );
   await waitFor(() =>
     expect(screen.getByLabelText('名称 *')).toHaveValue('服务器最新部门'),
+  );
+});
+
+it('renders collapsible department hierarchy and keeps ancestors visible during search', async () => {
+  const user = userEvent.setup();
+  const root = { ...department, id: 'root', title: '测试中心' };
+  const child = {
+    ...department,
+    id: 'finance',
+    title: '财务部',
+    parentId: 'root',
+  };
+  const other = {
+    ...department,
+    id: 'operations',
+    title: '运营部',
+    parentId: 'root',
+  };
+  api.request.mockImplementation(({ path }: any) =>
+    Promise.resolve(
+      path === 'organization'
+        ? {
+            data: { ...snapshot.data, departments: [root, child, other] },
+          }
+        : options,
+    ),
+  );
+  mount(<Departments />);
+  const nav = await screen.findByRole('navigation', { name: '组织架构' });
+  expect(within(nav).getByRole('link', { name: /财务部/ })).toBeVisible();
+  await user.click(within(nav).getByRole('button', { name: '收起 测试中心' }));
+  expect(within(nav).queryByRole('link', { name: /财务部/ })).toBeNull();
+  await user.type(screen.getByPlaceholderText('按部门名称搜索'), '财务');
+  expect(within(nav).getByRole('link', { name: /测试中心/ })).toBeVisible();
+  await waitFor(() =>
+    expect(within(nav).getByRole('link', { name: /财务部/ })).toBeVisible(),
+  );
+  expect(within(nav).queryByRole('link', { name: /运营部/ })).toBeNull();
+  await user.click(within(nav).getByRole('link', { name: /财务部/ }));
+  expect(within(nav).getByRole('link', { name: /财务部/ })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+it('shows only direct employees in the selected department and separates available accounts', async () => {
+  const user = userEvent.setup();
+  const second = { ...department, id: 'second', title: '第二部门' };
+  api.request.mockImplementation(({ path }: any) =>
+    Promise.resolve(
+      path === 'organization'
+        ? {
+            data: {
+              ...snapshot.data,
+              departments: [department, second],
+              members: [
+                {
+                  id: 'm',
+                  departmentId: 'd',
+                  userId: 'u',
+                  active: true,
+                  primary: true,
+                },
+                {
+                  id: 'm2',
+                  departmentId: 'second',
+                  userId: 'u2',
+                  active: true,
+                  primary: false,
+                },
+              ],
+              names: { u: '测试财务', u2: '测试运营' },
+              memberProfiles: {
+                u: { email: 'finance@example.test', disabledAt: null },
+                u2: { email: 'ops@example.test', disabledAt: '2026-10-20' },
+              },
+            },
+          }
+        : options,
+    ),
+  );
+  mount(<Departments />);
+  const table = await screen.findByRole('table', {
+    name: '演示部门 · 员工列表',
+  });
+  expect(within(table).getByText('finance@example.test')).toBeVisible();
+  expect(within(table).queryByText('测试运营')).toBeNull();
+  await user.type(
+    screen.getByPlaceholderText('按员工姓名或邮箱搜索'),
+    'missing',
+  );
+  await waitFor(() =>
+    expect(within(table).queryByText('finance@example.test')).toBeNull(),
+  );
+  expect(within(table).getByText('没有匹配结果')).toBeVisible();
+  await user.clear(screen.getByPlaceholderText('按员工姓名或邮箱搜索'));
+  await waitFor(() =>
+    expect(within(table).getByText('finance@example.test')).toBeVisible(),
+  );
+
+  expect(screen.queryByRole('dialog', { name: '添加成员' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: '添加成员' }));
+  expect(screen.getByRole('combobox', { name: '用户' })).toBeVisible();
+  expect(screen.getByRole('dialog', { name: '添加成员' })).toBeVisible();
+  await user.click(
+    within(screen.getByRole('dialog', { name: '添加成员' })).getByRole(
+      'button',
+      { name: '取消' },
+    ),
+  );
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  const nav = screen.getByRole('navigation', { name: '组织架构' });
+  await user.click(within(nav).getByRole('link', { name: /第二部门/ }));
+  const next = await screen.findByRole('table', {
+    name: '第二部门 · 员工列表',
+  });
+  expect(within(next).getByText('ops@example.test')).toBeVisible();
+  expect(within(next).getByText('已停用')).toBeVisible();
+  expect(within(next).queryByText('测试财务')).toBeNull();
+  expect(screen.queryByRole('dialog', { name: '添加成员' })).toBeNull();
+});
+
+it('discards a pending member removal when navigating to another department and back', async () => {
+  const user = userEvent.setup();
+  api.request.mockImplementation(({ path }: any) =>
+    Promise.resolve(
+      path === 'organization'
+        ? {
+            data: {
+              ...snapshot.data,
+              departments: [
+                department,
+                { ...department, id: 'second', title: '第二部门' },
+              ],
+              members: [
+                {
+                  id: 'm',
+                  departmentId: 'd',
+                  userId: 'u',
+                  active: true,
+                  primary: true,
+                },
+              ],
+              names: { u: '演示用户' },
+            },
+          }
+        : options,
+    ),
+  );
+  mount(<Departments />);
+  await user.click(
+    await screen.findByRole('button', { name: '演示用户的操作' }),
+  );
+  await user.click(await screen.findByRole('menuitem', { name: '移除' }));
+  expect(screen.getByRole('alertdialog')).toBeVisible();
+  // A URL/history change can happen while a confirmation is open; bypass its pointer shield to exercise that navigation.
+  fireEvent.click(screen.getByRole('link', { name: /第二部门/, hidden: true }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  fireEvent.click(screen.getByRole('link', { name: /演示部门/ }));
+  await screen.findByRole('table', { name: '演示部门 · 员工列表' });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(api.request.mock.calls.some(([args]) => args.method === 'PUT')).toBe(
+    false,
+  );
+});
+
+it('paginates a department roster and returns to the first page after employee search', async () => {
+  const user = userEvent.setup();
+  const members = Array.from({ length: 12 }, (_, index) => ({
+    id: 'm' + index,
+    userId: 'u' + index,
+    departmentId: 'd',
+    active: true,
+    primary: true,
+  }));
+  api.request.mockImplementation(({ path }: any) =>
+    Promise.resolve(
+      path === 'organization'
+        ? {
+            data: {
+              ...snapshot.data,
+              members,
+              names: Object.fromEntries(
+                members.map((m, i) => [
+                  m.userId,
+                  '员工' + String(i).padStart(2, '0'),
+                ]),
+              ),
+              memberProfiles: Object.fromEntries(
+                members.map((m, i) => [
+                  m.userId,
+                  { email: 'staff' + i + '@example.test', disabledAt: null },
+                ]),
+              ),
+            },
+          }
+        : options,
+    ),
+  );
+  mount(<Departments />);
+  const table = await screen.findByRole('table', {
+    name: '演示部门 · 员工列表',
+  });
+  expect(within(table).getByText('员工00')).toBeVisible();
+  expect(within(table).queryByText('员工11')).toBeNull();
+  await user.click(
+    within(table.parentElement!.parentElement!).getByRole('button', {
+      name: '下一页',
+    }),
+  );
+  expect(within(table).getByText('员工11')).toBeVisible();
+  await user.type(
+    screen.getByPlaceholderText('按员工姓名或邮箱搜索'),
+    'staff0@',
+  );
+  await waitFor(() => expect(within(table).getByText('员工00')).toBeVisible());
+  expect(within(table).queryByText('员工11')).toBeNull();
+});
+
+it('adds an employee through the add button and closes the form on successful save', async () => {
+  const user = userEvent.setup();
+  mount(<Departments />);
+  await user.click(await screen.findByRole('button', { name: '添加成员' }));
+  const panel = screen.getByRole('dialog', { name: '添加成员' });
+  expect(
+    within(panel).getByRole('button', { name: '添加', exact: true }),
+  ).toBeDisabled();
+  await user.click(within(panel).getByRole('combobox', { name: '用户' }));
+  await user.click(
+    await screen.findByRole('option', { name: '演示用户 · demo@example.test' }),
+  );
+  await user.click(within(panel).getByRole('checkbox', { name: '主部门' }));
+  await user.click(
+    within(panel).getByRole('button', { name: '添加', exact: true }),
+  );
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/departments/d/members',
+        method: 'PUT',
+        json: { userId: 'u', active: true, primary: true },
+      }),
+    ),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: '添加成员' })).toBeNull(),
+  );
+});
+
+it('updates primary department directly from the employee actions menu', async () => {
+  const user = userEvent.setup();
+  api.request.mockImplementation(({ path, method }: any) =>
+    Promise.resolve(
+      method
+        ? { data: {} }
+        : path === 'organization'
+          ? {
+              data: {
+                ...snapshot.data,
+                members: [
+                  {
+                    id: 'm',
+                    departmentId: 'd',
+                    userId: 'u',
+                    active: true,
+                    primary: false,
+                  },
+                ],
+                names: { u: '演示用户' },
+              },
+            }
+          : options,
+    ),
+  );
+  mount(<Departments />);
+  await user.click(
+    await screen.findByRole('button', { name: '演示用户的操作' }),
+  );
+  await user.click(await screen.findByRole('menuitem', { name: '设为主部门' }));
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/departments/d/members',
+        method: 'PUT',
+        json: { userId: 'u', active: true, primary: true },
+      }),
+    ),
+  );
+  expect(screen.queryByRole('dialog', { name: '添加成员' })).toBeNull();
+});
+
+it('keeps member drafts on a rejected save and guards closing unsaved selections', async () => {
+  const user = userEvent.setup();
+  api.request.mockImplementation(({ path, method }: any) =>
+    method
+      ? Promise.reject(
+          new ApiClientError('stale', { status: 409, reason: 'ORG_STALE' }),
+        )
+      : Promise.resolve(path === 'organization' ? snapshot : options),
+  );
+  mount(<Departments />, '/organization/departments/members/new?department=d');
+  const dialog = await screen.findByRole('dialog', { name: '添加成员' });
+  await user.click(within(dialog).getByRole('combobox', { name: '用户' }));
+  await user.click(
+    await screen.findByRole('option', { name: '演示用户 · demo@example.test' }),
+  );
+  await user.click(
+    within(dialog).getByRole('button', { name: '添加', exact: true }),
+  );
+  expect(await within(dialog).findByRole('alert')).toBeVisible();
+  expect(
+    within(dialog).getByRole('combobox', { name: '用户' }),
+  ).toHaveTextContent('演示用户');
+  await user.click(within(dialog).getByRole('button', { name: '取消' }));
+  const confirmation = await screen.findByRole('alertdialog');
+  await user.click(
+    within(confirmation).getByRole('button', { name: '放弃修改' }),
+  );
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+});
+
+it('preserves selected account across picker pages and returns to the same filtered department', async () => {
+  const user = userEvent.setup();
+  api.request.mockImplementation(({ path, query, method }: any) =>
+    Promise.resolve(
+      method
+        ? { data: {} }
+        : path === 'organization'
+          ? snapshot
+          : {
+              data: {
+                ...options.data,
+                userTotal: 21,
+                users:
+                  query?.page === 2
+                    ? [
+                        {
+                          id: 'u2',
+                          name: '其他账号',
+                          email: 'other@example.test',
+                          disabledAt: null,
+                        },
+                      ]
+                    : options.data.users,
+              },
+            },
+    ),
+  );
+  mount(
+    <Departments />,
+    '/organization/departments/members/new?department=d&employeeQ=keep&departmentQ=演示',
+  );
+  const dialog = await screen.findByRole('dialog', { name: '添加成员' });
+  await user.click(within(dialog).getByRole('combobox', { name: '用户' }));
+  await user.click(
+    await screen.findByRole('option', { name: '演示用户 · demo@example.test' }),
+  );
+  await user.click(within(dialog).getByRole('button', { name: '下一页' }));
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/options',
+        query: expect.objectContaining({ page: 2 }),
+      }),
+    ),
+  );
+  expect(
+    within(dialog).getByRole('combobox', { name: '用户' }),
+  ).toHaveTextContent('演示用户');
+  await user.click(
+    within(dialog).getByRole('button', { name: '添加', exact: true }),
+  );
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  const link = within(
+    screen.getByRole('navigation', { name: '组织架构' }),
+  ).getByRole('link', { name: /演示部门/ });
+  const target = new URL(link.getAttribute('href')!, 'http://localhost');
+  expect(target.pathname).toBe('/organization/departments');
+  expect(target.searchParams.get('department')).toBe('d');
+  expect(target.searchParams.get('employeeQ')).toBe('keep');
+  expect(target.searchParams.get('departmentQ')).toBe('演示');
+});
+
+it('refuses a member dialog without an explicit department instead of adding to the first department', async () => {
+  mount(<Departments />, '/organization/departments/members/new');
+  const dialog = await screen.findByRole('dialog', { name: '添加成员' });
+  expect(
+    await within(dialog).findByText('请返回列表，选择要添加成员的部门。'),
+  ).toBeVisible();
+  expect(
+    within(dialog).getByRole('button', { name: '添加', exact: true }),
+  ).toBeDisabled();
+  expect(api.request).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'organization/options' }),
+  );
+});
+
+it('denies read-only users entering the add-member route without loading account options', async () => {
+  state.can = false;
+  mount(<Departments />, '/organization/departments/members/new?department=d');
+  const dialog = await screen.findByRole('dialog', { name: '添加成员' });
+  expect(within(dialog).getByText('你没有此分区的访问权限。')).toBeVisible();
+  expect(
+    within(dialog).getByRole('button', { name: '添加', exact: true }),
+  ).toBeDisabled();
+  expect(api.request).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'organization/options' }),
+  );
+});
+
+it('opens edit from any tree node, saves that target and preserves the selected department and filters', async () => {
+  const user = userEvent.setup();
+  let child = {
+    ...department,
+    id: 'child',
+    title: '财务部门',
+    parentId: 'd',
+    version: 7,
+  };
+  api.request.mockImplementation(({ path, method, json }: any) => {
+    if (method) {
+      child = { ...child, ...json, version: 8 };
+      return Promise.resolve({ data: child });
+    }
+    return Promise.resolve(
+      path === 'organization'
+        ? { data: { ...snapshot.data, departments: [department, child] } }
+        : options,
+    );
+  });
+  mount(
+    <Departments />,
+    '/organization/departments?department=d&employeeQ=keep&departmentQ=部门',
+  );
+  const nav = await screen.findByRole('navigation', { name: '组织架构' });
+  expect(screen.queryByLabelText('名称 *')).toBeNull();
+  await user.click(
+    within(nav).getByRole('button', { name: '财务部门的部门操作' }),
+  );
+  await user.click(
+    await screen.findByRole('menuitem', { name: '编辑', exact: true }),
+  );
+  const dialog = await screen.findByRole('dialog', { name: '编辑部门' });
+  const name = await within(dialog).findByLabelText('名称 *');
+  expect(name).toHaveValue('财务部门');
+  await user.clear(name);
+  await user.type(name, '财务新部门');
+  await user.click(
+    within(dialog).getByRole('button', { name: '保存', exact: true }),
+  );
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(api.request).toHaveBeenCalledWith(
+    expect.objectContaining({
+      path: 'organization/departments/child',
+      method: 'PATCH',
+      json: { title: '财务新部门', parentId: 'd', active: true, version: 7 },
+    }),
+  );
+  const selected = within(
+    screen.getByRole('navigation', { name: '组织架构' }),
+  ).getByRole('link', { name: /演示部门/ });
+  expect(selected).toHaveAttribute('aria-current', 'page');
+  const url = new URL(selected.getAttribute('href')!, 'http://localhost');
+  expect(url.pathname).toBe('/organization/departments');
+  expect(url.searchParams.get('department')).toBe('d');
+  expect(url.searchParams.get('employeeQ')).toBe('keep');
+  expect(url.searchParams.get('departmentQ')).toBe('部门');
+  expect(
+    within(screen.getByRole('navigation', { name: '组织架构' })).getByRole(
+      'link',
+      { name: /财务新部门/ },
+    ),
+  ).toBeVisible();
+  expect(screen.queryByLabelText('名称 *')).toBeNull();
+});
+
+it.each([true, false])(
+  'confirms department status changes with the original version (active=%s)',
+  async (active) => {
+    const user = userEvent.setup();
+    api.request.mockImplementation(({ path, method }: any) =>
+      Promise.resolve(
+        method
+          ? { data: {} }
+          : path === 'organization'
+            ? {
+                data: {
+                  ...snapshot.data,
+                  departments: [{ ...department, active, version: 3 }],
+                },
+              }
+            : options,
+      ),
+    );
+    mount(<Departments />, '/organization/departments/edit/d?department=d');
+    const dialog = await screen.findByRole('dialog', { name: '编辑部门' });
+    await within(dialog).findByLabelText('名称 *');
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: active ? '停用' : '启用',
+        exact: true,
+      }),
+    );
+    const confirm = await screen.findByRole('alertdialog');
+    expect(within(confirm).getByRole('heading')).toHaveTextContent('演示部门');
+    await user.click(
+      within(confirm).getByRole('button', {
+        name: active ? '停用' : '启用',
+        exact: true,
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/departments/d',
+        method: 'PATCH',
+        json: {
+          title: '演示部门',
+          parentId: null,
+          active: !active,
+          version: 3,
+        },
+      }),
+    );
+  },
+);
+
+it('keeps edit drafts while refreshing in the background and requires confirmation before closing', async () => {
+  const user = userEvent.setup();
+  const { cache } = mount(
+    <Departments />,
+    '/organization/departments/edit/d?department=d',
+  );
+  const dialog = await screen.findByRole('dialog', { name: '编辑部门' });
+  const name = await within(dialog).findByLabelText('名称 *');
+  await user.clear(name);
+  await user.type(name, '本地草稿');
+  cache.setQueryData(['organization', 'a', 0, 'organization', undefined], {
+    data: {
+      ...snapshot.data,
+      departments: [{ ...department, title: '其他人修改', version: 9 }],
+    },
+  });
+  expect(name).toHaveValue('本地草稿');
+  expect(
+    within(dialog).getByRole('button', { name: '停用', exact: true }),
+  ).toBeDisabled();
+  await user.click(
+    within(dialog).getByRole('button', { name: '取消', exact: true }),
+  );
+  const confirm = await screen.findByRole('alertdialog');
+  await user.click(within(confirm).getByRole('button', { name: '放弃修改' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(api.request.mock.calls.some(([args]) => args.method === 'PATCH')).toBe(
+    false,
+  );
+});
+
+it('preserves edit drafts and their close guard when an explicit stale reload fails', async () => {
+  const user = userEvent.setup();
+  let failRead = false;
+  api.request.mockImplementation(({ path, method }: any) => {
+    if (method)
+      return Promise.reject(
+        new ApiClientError('stale', { status: 409, reason: 'ORG_STALE' }),
+      );
+    if (path === 'organization' && failRead)
+      return Promise.reject(new Error('offline'));
+    return Promise.resolve(path === 'organization' ? snapshot : options);
+  });
+  mount(<Departments />, '/organization/departments/edit/d?department=d');
+  const name = await screen.findByLabelText('名称 *');
+  await user.clear(name);
+  await user.type(name, '保留的草稿');
+  await user.click(screen.getByRole('button', { name: '保存', exact: true }));
+  await user.click(
+    await screen.findByRole('button', { name: '重新加载', exact: true }),
+  );
+  const reset = await screen.findByRole('alertdialog');
+  failRead = true;
+  await user.click(
+    within(reset).getByRole('button', { name: '重新加载', exact: true }),
+  );
+  expect(await within(reset).findByRole('alert')).toBeVisible();
+  expect(screen.getByLabelText('名称 *')).toHaveValue('保留的草稿');
+  await user.click(
+    within(reset).getByRole('button', { name: '取消', exact: true }),
+  );
+  await user.click(screen.getByRole('button', { name: '取消', exact: true }));
+  expect(await screen.findByRole('alertdialog')).toHaveTextContent('放弃修改');
+});
+
+it('retains a dirty edit draft when a refreshed snapshot no longer contains the target', async () => {
+  const user = userEvent.setup();
+  const { cache } = mount(
+    <Departments />,
+    '/organization/departments/edit/d?department=d',
+  );
+  const name = await screen.findByLabelText('名称 *');
+  await user.clear(name);
+  await user.type(name, '已被删除的部门草稿');
+  cache.setQueryData(['organization', 'a', 0, 'organization', undefined], {
+    data: { ...snapshot.data, departments: [] },
+  });
+  await screen.findByText('该部门不存在，请关闭弹窗后重新选择。');
+  expect(screen.getByLabelText('名称 *')).toHaveValue('已被删除的部门草稿');
+  expect(screen.getByLabelText('名称 *')).toBeDisabled();
+  expect(
+    screen.queryByRole('button', { name: '保存', exact: true }),
+  ).toBeNull();
+  await user.click(screen.getByRole('button', { name: '取消', exact: true }));
+  expect(await screen.findByRole('alertdialog')).toHaveTextContent('放弃修改');
+  expect(api.request.mock.calls.some(([args]) => args.method === 'PATCH')).toBe(
+    false,
   );
 });

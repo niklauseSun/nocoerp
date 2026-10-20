@@ -65,6 +65,7 @@ export function calculateReport(
     contractId: '',
     at: '',
     date: '',
+    method: '',
     reference: '',
     amountCents: '0',
     appliedCents: '0',
@@ -108,6 +109,7 @@ export function calculateReport(
         date: b.dueDate,
         amountCents: b.amountCents,
         appliedCents: String(deposit + allocated),
+        cashAppliedCents: String(allocated),
         remainingCents: String(remaining),
       }),
     );
@@ -162,6 +164,14 @@ export function calculateReport(
         date: text(e.payload.date),
         amountCents: e.amountCents,
         appliedCents: String(applied),
+        cashAppliedCents: String(
+          sum(
+            liveLease.filter(
+              (x) => x.kind === 'collect' && x.sourceId === e.id,
+            ),
+            (x) => BigInt(x.amountCents),
+          ),
+        ),
         remainingCents: String(BigInt(e.amountCents) - applied),
       }),
     );
@@ -184,6 +194,14 @@ export function calculateReport(
           date: r.date,
           amountCents: String(-n),
           appliedCents: String(applied),
+          cashAppliedCents: String(
+            sum(
+              liveLease.filter(
+                (x) => x.kind === 'collect' && x.sourceId === r.id,
+              ),
+              (x) => BigInt(x.amountCents),
+            ),
+          ),
           remainingCents: String(-n - applied),
         }),
       );
@@ -355,6 +373,7 @@ export function calculateReport(
       at: e.at,
       date: e.date,
       reference: e.reference ?? e.number,
+      method: e.method,
       amountCents: e.amountCents,
     }),
   );
@@ -400,7 +419,20 @@ export function calculateReport(
       ),
     }),
   );
+  // Current confirmed receivables, irrespective of the cash report's registration range.
+  // Cash collection means live receipt allocations / direct debt collections only:
+  // unallocated advances and deposit offsets are deliberately excluded.
+  const assessed = sum(lines.receivables, (e) => BigInt(e.amountCents)),
+    cashApplied = sum(lines.receivables, (e) =>
+      BigInt(e.cashAppliedCents ?? '0'),
+    );
   const summary = {
+    assessedCents: String(assessed),
+    appliedCents: String(sum(lines.receivables, (e) => BigInt(e.appliedCents))),
+    cashAppliedCents: String(cashApplied),
+    collectionRateBps: String(
+      assessed > 0n ? (cashApplied * 10000n + assessed / 2n) / assessed : 0n,
+    ),
     openingCashCents: String(opening),
     receivedCents: String(received),
     paidCents: String(paid),

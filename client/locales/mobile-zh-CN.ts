@@ -1,5 +1,15 @@
 export default {
-  title: '手机工作台',
+  actionUnavailable: '记录已处理或当前确认方式不可用，请刷新或返回查看。',
+  revenueReports: '营业报送',
+  settlements: '结算确认',
+  tenantService: '租户服务',
+  reportBasics: '报送信息',
+  reportAmounts: '营业金额',
+  reportEvidence: '凭证说明',
+  reportHelp: '先保存报送，再在详情上传凭证并提交审核。',
+  confirmSummary: '请先核对本期营业额、费用扣项与应返款，再确认或提出异议。',
+
+  title: '工作台',
   loading: '加载中',
   description: '查看个人待办，处理审批与现场工作。',
   navigation: '手机导航',

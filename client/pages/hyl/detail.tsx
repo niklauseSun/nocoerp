@@ -1,3 +1,6 @@
+import { ResponsiveTable } from '#components/responsive-table';
+import { useCoverFocus } from '../profit-sharing/focus.js';
+import { ReportingEvidence } from '../tenant-operations/evidence.js';
 import { ApprovalPanel } from '../approvals/panel.js';
 import { RepairRelated } from '../repairs/related.js';
 import { EnergyRelated } from '../energy/related.js';
@@ -32,6 +35,7 @@ import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';
 import { Button } from '#components/ui/button';
+import { StatusBadge } from '#components/status-badge';
 import { BusinessStatus } from './status.js';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import {
@@ -71,22 +75,23 @@ function ActionLink({ kind, action }: { kind: Kind; action: string }) {
 export default function BusinessDetail({
   kindOverride,
 }: { kindOverride?: Kind } = {}) {
+  useCoverFocus();
   const context = useOutletContext<{ kind: Kind }>();
   const kind = kindOverride ?? context.kind;
   const { id } = useParams(),
     location = useLocation();
   const { t, i18n } = useTranslation();
   const result = useBusinessQuery<{ data: BusinessRow }>(`${kind}/${id}`);
-  const row = result.data?.data;
+  const row = result.error ? undefined : result.data?.data;
   const client = useQueryClient();
   const fetching = useIsFetching({ queryKey: ['hyl'] });
   useEffect(() => {
     if (result.error instanceof ApiClientError && result.error.status === 404)
       void client.invalidateQueries({
-        queryKey: ['hyl', 'merchants'],
+        queryKey: ['hyl', kind],
         exact: false,
       });
-  }, [result.error, client]);
+  }, [result.error, client, kind]);
   const parentSearch = new URLSearchParams(location.search);
   for (const key of [
     'licensePage',
@@ -159,7 +164,7 @@ export default function BusinessDetail({
       {kind === 'contracts' ? (
         <LeaseStatus status={row.leaseState ?? 'active'} />
       ) : row.status === 'due' && row.debtRemaining !== undefined ? (
-        <p className='text-sm font-medium'>
+        <StatusBadge tone='info'>
           {t(
             Number(row.debtRemaining) === 0
               ? 'lease.collected'
@@ -167,15 +172,25 @@ export default function BusinessDetail({
                 ? 'lease.partialCollection'
                 : 'lease.pendingCollection',
           )}
-        </p>
+        </StatusBadge>
       ) : (
         <BusinessStatus status={row.status} />
       )}
-      {kind !== 'merchants' ? actions : null}
+
       {kind === 'contracts' ? (
         <ApprovalPanel kind='contracts' id={row.id} />
       ) : null}
-      {kind === 'settlements' ? <SettlementDebt row={row} /> : null}
+      {kind === 'settlements' ? (
+        <>
+          <p className='text-sm text-muted-foreground'>
+            {t('mobile.confirmSummary')}
+          </p>
+          <SettlementDebt row={row} />
+        </>
+      ) : null}
+      {kind === 'revenueReports' || kind === 'expenses' ? (
+        <ReportingEvidence key={row.id} kind={kind} id={row.id} />
+      ) : null}
       {kind === 'settlements' && row.payload.rentChannel === 'bill' ? (
         <p className='text-sm text-muted-foreground'>
           {t('billing.rentInBill')}
@@ -194,13 +209,13 @@ export default function BusinessDetail({
               </p>
             </CardHeader>
             <CardContent>
-              <dl className='grid gap-4 sm:grid-cols-2'>
+              <dl className='grid gap-4 md:grid-cols-2'>
                 {Object.entries(
                   (row.payload.amounts ?? {}) as Record<string, string>,
                 ).map(([key, value]) => (
                   <div
                     key={key}
-                    className='flex items-center justify-between gap-4'
+                    className='flex min-w-0 flex-wrap items-center justify-between gap-2'
                   >
                     <dt className='text-sm text-muted-foreground'>
                       {t(`hyl.fields.${key}`)}
@@ -210,7 +225,7 @@ export default function BusinessDetail({
                     </dd>
                   </div>
                 ))}
-                <div className='flex justify-between gap-4'>
+                <div className='flex min-w-0 flex-wrap justify-between gap-2'>
                   <dt>{t('hyl.fields.paid')}</dt>
                   <dd>
                     {amountText(
@@ -225,7 +240,7 @@ export default function BusinessDetail({
                 {Number(
                   (row.payload.amounts as Record<string, string>).payable,
                 ) >= 0 ? (
-                  <div className='flex justify-between gap-4'>
+                  <div className='flex min-w-0 flex-wrap justify-between gap-2'>
                     <dt>{t('hyl.fields.remaining')}</dt>
                     <dd>
                       {amountText(
@@ -250,7 +265,7 @@ export default function BusinessDetail({
               <CardTitle>{t('hyl.copy.rules')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className='grid grid-cols-[8rem_1fr] gap-4'>
+              <dl className='grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr] md:gap-4'>
                 {specs.contracts
                   .filter((f) => !['merchantId', 'notes'].includes(f.key))
                   .map((f) => (
@@ -277,7 +292,22 @@ export default function BusinessDetail({
                 <CardTitle>{t(`hyl.copy.${key}`)}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className='overflow-x-auto'>
+                <ResponsiveTable
+                  labels={[
+                    'number',
+                    'date',
+                    ...(key === 'revenues'
+                      ? [
+                          'receipts',
+                          'refunds',
+                          'activity',
+                          'cash',
+                          'hospitality',
+                          'collected',
+                        ]
+                      : ['category', 'responsibility', 'amount']),
+                  ].map((k) => t('hyl.fields.' + k))}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -334,7 +364,7 @@ export default function BusinessDetail({
                       )}
                     </TableBody>
                   </Table>
-                </div>
+                </ResponsiveTable>
               </CardContent>
             </Card>
           ))}
@@ -344,7 +374,12 @@ export default function BusinessDetail({
             </CardHeader>
             <CardContent>
               {row.payments?.length ? (
-                <div className='overflow-x-auto'>
+                <ResponsiveTable
+                  titleIndex={1}
+                  labels={['date', 'reference', 'amount', 'actor'].map((k) =>
+                    t('hyl.fields.' + k),
+                  )}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -366,7 +401,7 @@ export default function BusinessDetail({
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </ResponsiveTable>
               ) : (
                 <p className='text-sm text-muted-foreground'>
                   {t('hyl.copy.noItems')}
@@ -376,7 +411,7 @@ export default function BusinessDetail({
           </Card>
         </>
       ) : (
-        <dl className='grid grid-cols-[8rem_1fr] gap-4'>
+        <dl className='grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr] md:gap-4'>
           {specs[kind]
             .filter(
               (spec) =>
@@ -489,7 +524,7 @@ export default function BusinessDetail({
                 ? (row?.name ?? t('hyl.nav.merchants'))
                 : (row?.number ?? t(`hyl.nav.${kind}`))
             }
-            actions={kind === 'merchants' ? actions : undefined}
+            actions={actions}
           />
           {content}
         </PageContainer>

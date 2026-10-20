@@ -14,6 +14,8 @@ The header carries no Settings or Inbox entry. An application has no separate se
 
 `client/lib/navigation-transform.ts` is the application-owned hook for customizing the permission-filtered navigation tree. The shared sidebar supports static section labels with direct links as well as collapsible groups.
 
+本应用在该transform中把已授权的应用入口按“工作入口、租户经营、物业服务、收支财务、系统管理”重排；AppLayout传`sections={false}`使用现有可折叠菜单。组仅存在于导航树，不注册虚拟路径、不移动真实路由、不改变page id或授权；不要为菜单归组重写业务路径。空组不显示，未知/插件入口保留原顺序，不凭空授予页面权限。组标题使用应用navigationGroups locale；“手机工作台”统一显示为“工作台”，保留/workbench与原mobile-workbench名称。
+
 Navigation groups retain their expanded or collapsed state while the navigation tree stays mounted. Selecting a new page expands its ancestor groups without collapsing other groups; users can still collapse the active group manually.
 
 ## Account menu and session
@@ -29,3 +31,13 @@ The account menu language control in `client/layouts/components/language-switche
 Use `Loading` for page or panel waits and `Spinner` (the shadcn-compatible adapter to `BrandSpinner`) for inline pending actions, uploads, and refresh indicators. Both share the stable NocoBase mark and orbit animation; do not introduce independent Lucide spinners for application loading. Keep skeletons for content placeholders and progress bars for determinate progress. `index.html` has the matching pre-JavaScript mark and must stay visually consistent. All animations respect reduced motion.
 
 The shared list of shell behaviors to keep when customizing is in [customizing the shell](../skills/nocobase-app-development/references/frontend/references/shell.md).
+
+## 手机租户流程与可视键盘
+
+本应用已提供手机底栏与`ResponsiveTable`卡片分支（768px断点）。报送/结算列表、结算子表及租户服务复用原单元格与操作；`ResponsiveTable.enabled`只让目标平面表启用，含Fragment的其他业务表不要直接转卡片。工作台通过原page和composite权限显示报送、待确认结算和服务入口，入口不授予权限。
+
+共享`RouteOverlay`传入`useVisualViewport`的高度/offsetTop变量，`styles.css`仅在手机分支限制位置和高度，使虚拟键盘只影响弹窗可视区域而不改表单状态。内核默认`100dvh`不能覆盖iOS仅改变visualViewport的情况，因此这是应用保留的定制；桌面仍用组件默认定位。保留resize/scroll卸载清理与无visualViewport的window fallback，更新模板时不要删掉这层。
+
+报送分组和sticky保存区、结算/服务单列详情使用md断点，与手机卡片一致；覆盖页复用useCoverFocus，Action基准版本必须显式刷新，read权限不能代替confirm权限。说明与验收边界见`docs/手机浏览器租户流程.md`。本轮浏览器工具拒绝观察，本次只有源码/组件证据，不能声称真机375px、主题、IME或软键盘已验收。
+
+工作台现为直接URL/手机底栏入口：`/workbench`保留登录要求和原子路由，但不声明`navigation`，不出现在桌面侧栏或手机“全部功能”菜单。不要因其在分组映射中预留了名称就重新添加侧栏入口；手机首页跳转与底栏仍可进入。

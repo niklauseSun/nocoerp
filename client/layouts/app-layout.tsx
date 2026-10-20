@@ -51,6 +51,7 @@ export function AppLayout({ routes }: AppLayoutProps): ReactElement {
         <AppSidebarProvider>
           <AppSidebar label={navigationLabel} footer={<AppSidebarFooter />}>
             <NavigationMenu
+              sections={false}
               items={menuItems}
               label={navigationLabel}
               selectedKey={selectedKey}

@@ -1,6 +1,49 @@
 export default {
+  edit: 'Edit',
+
+  editDepartment: 'Edit department',
+  departmentActions: 'Department actions for {{name}}',
+  editDepartmentMissing:
+    'This department no longer exists. Close the dialog and select another.',
+  saveBeforeDepartmentStatus:
+    'Save or cancel your edits before changing the department status.',
+
+  add: 'Add',
+
+  memberInDepartment: '{{name}} · {{department}}',
+  selectMemberHelp:
+    'Choose an account to add. Existing department members and disabled accounts are excluded.',
+  noEligibleMembersOnPage:
+    'No eligible accounts on this page. Try another search or page.',
+
+  addMemberToDepartment: 'Add a member to {{name}}',
+  memberDepartmentRequired: 'Return to the list and select a department.',
+
+  addDepartmentMember: 'Add member',
+  setPrimaryDepartment: 'Set as primary department',
+  unsetPrimaryDepartment: 'Unset primary department',
+
+  searchEmployees: 'Search employees by name or email',
+  tablePage: 'Page {{page}} of {{total}}, {{count}} employees',
+  previousPage: 'Previous',
+  nextPage: 'Next',
+  employeeActions: 'Actions for {{name}}',
+
+  collapseDepartment: 'Collapse {{name}}',
+  expandDepartment: 'Expand {{name}}',
+  memberCount: '{{count}} direct members',
+  departmentMembers: '{{name}} · Employees',
+  employeeName: 'Employee name',
+  membershipType: 'Membership',
+  secondaryDepartment: 'Secondary department',
+  actions: 'Actions',
+  unavailable: 'Unavailable',
+  manageMembers: 'Add or update department members',
+  addMemberHelp:
+    'These are accounts available to add, not the current department roster. Select an account and save.',
+
   emptyMembersHelp:
-    'If you can maintain this department, select a user below to add a member. Otherwise contact your organization administrator.',
+    'Click “Add member” to choose an account if you have permission; otherwise contact your organization administrator.',
   emptyProjectsHelp:
     'If you can grant access, select a project and user or department below. Otherwise contact your organization administrator.',
   emptyRolesHelp:

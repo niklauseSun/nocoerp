@@ -7,6 +7,9 @@ import {
   ShieldCheck,
   Gauge,
   ArrowUpRight,
+  Receipt,
+  Wallet,
+  MessagesSquare,
 } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
@@ -113,6 +116,9 @@ function Attention({
 export default function Workbench() {
   const { t } = useTranslation(),
     location = useLocation(),
+    revenue = useEntryAccess('hyl-revenueReports', 'hyl.revenueReports'),
+    settlement = useEntryAccess('hyl-settlements', 'hyl.settlements'),
+    service = useEntryAccess('hyl-tenant-operations', 'hyl.merchants'),
     approval = useEntryAccess('hyl-approvals', 'hyl.approvals'),
     repair = useEntryAccess('hyl-repairs', 'hyl.repairs'),
     inspection = useEntryAccess('hyl-inspections', 'hyl.inspections'),
@@ -129,6 +135,24 @@ export default function Workbench() {
       approval.can,
     );
   const entries = [
+    {
+      key: 'revenueReports',
+      to: '/revenueReports',
+      icon: Receipt,
+      can: revenue.can,
+    },
+    {
+      key: 'settlements',
+      to: '/settlements?status=confirmation',
+      icon: Wallet,
+      can: settlement.can,
+    },
+    {
+      key: 'tenantService',
+      to: '/tenantOperations?view=tenantService',
+      icon: MessagesSquare,
+      can: service.can,
+    },
     { key: 'inbox', to: '/inbox', icon: Bell, can: true },
     { key: 'todos', to: '/messageTodos', icon: ListTodo, can: true },
     {

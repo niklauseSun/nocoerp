@@ -1,3 +1,5 @@
+import { useCoverFocus } from '../profit-sharing/focus.js';
+import { useNavigationGuard } from '@nocobase/app-client';
 import { useBusinessIdentity } from './hooks.js';
 import { AssetError as ErrorPanel } from '../assets/shared.js';
 import { ContractAssetsSelector } from '../assets/bindings.js';
@@ -48,6 +50,7 @@ import {
 import { LoadingRows, Choice, DateField, RecordPicker } from './common.js';
 
 export default function BusinessForm() {
+  useCoverFocus();
   const businessIdentity = useBusinessIdentity();
   const toaster = useToaster();
   const { kind } = useOutletContext<{ kind: Kind }>(),
@@ -226,11 +229,22 @@ export default function BusinessForm() {
       void client.invalidateQueries({ queryKey: ['hyl', kind] });
   }, [latest.error, client, kind]);
   useEffect(() => {
-    if (!form.formState.isDirty && !license.dirty && !license.busy) return;
+    if (
+      !form.formState.isDirty &&
+      !license.dirty &&
+      !license.busy &&
+      !form.formState.isSubmitting
+    )
+      return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [form.formState.isDirty, license.dirty, license.busy]);
+  }, [
+    form.formState.isDirty,
+    form.formState.isSubmitting,
+    license.dirty,
+    license.busy,
+  ]);
   const preview = useWatch({ control: form.control });
   const dirty = form.formState.isDirty || assetsDirty;
   useEffect(() => {
@@ -250,6 +264,7 @@ export default function BusinessForm() {
       ? ((latest.data?.data.payload.assetIds as string[] | undefined) ?? [])
       : [];
   const pending = form.formState.isSubmitting || license.busy;
+  useNavigationGuard(() => !pending);
   const close = () => {
     void navigate(
       { pathname: '..', search: location.search },
@@ -454,7 +469,12 @@ export default function BusinessForm() {
             </AlertDescription>
           </Alert>
         ) : null}
-        <FieldGroup className='grid gap-6 sm:grid-cols-2'>
+        {kind === 'revenueReports' ? (
+          <p className='text-sm text-muted-foreground'>
+            {t('mobile.reportHelp')}
+          </p>
+        ) : null}
+        <FieldGroup className='grid min-w-0 gap-6 md:grid-cols-2'>
           {fields
             .filter(
               (spec) =>
@@ -464,11 +484,24 @@ export default function BusinessForm() {
             )
             .map((spec) => (
               <Fragment key={spec.key}>
+                {kind === 'revenueReports' &&
+                ['merchantId', 'receipts', 'evidence'].includes(spec.key) ? (
+                  <h2 className='text-base font-medium md:col-span-2'>
+                    {t(
+                      'mobile.' +
+                        {
+                          merchantId: 'reportBasics',
+                          receipts: 'reportAmounts',
+                          evidence: 'reportEvidence',
+                        }[spec.key],
+                    )}
+                  </h2>
+                ) : null}
                 {kind === 'contracts' &&
                 ['merchantId', 'method', 'includeActivity'].includes(
                   spec.key,
                 ) ? (
-                  <h2 className='text-base font-semibold sm:col-span-2'>
+                  <h2 className='text-base font-semibold md:col-span-2'>
                     {t(
                       `hyl.copy.group${spec.key === 'merchantId' ? 'number' : spec.key}`,
                     )}
@@ -672,7 +705,12 @@ export default function BusinessForm() {
             <PageHeader title={title} />
             <div className='flex max-w-4xl flex-col gap-6'>
               {content}
-              <div className='flex justify-end gap-2'>{footer}</div>
+              <div
+                data-slot='business-form-footer'
+                className='sticky bottom-0 flex flex-wrap justify-end gap-2 border-t bg-background py-4 md:static md:border-0'
+              >
+                {footer}
+              </div>
             </div>
           </PageContainer>
         </RouteChildPage>

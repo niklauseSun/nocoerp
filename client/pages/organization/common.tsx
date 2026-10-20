@@ -163,6 +163,7 @@ export interface Assignment {
   version: number;
 }
 export interface Snapshot {
+  memberProfiles?: Record<string, { email: string; disabledAt: string | null }>;
   names: Record<string, string>;
   departments: Department[];
   members: Member[];

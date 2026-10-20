@@ -1,3 +1,5 @@
+import reportingFiles from './reporting-files.js';
+import tenantOperations from './tenant-operations.js';
 import organization from './organization.js';
 import finance from './finance.js';
 import approvals from './approvals.js';
@@ -8,6 +10,7 @@ import repairs from './repairs.js';
 import energy from './energy.js';
 import invoicing from './invoicing.js';
 import profitSharing from './profit-sharing.js';
+import operationsDelivery from './operations-delivery.js';
 import type { Application } from '@nocobase/app-server/application';
 import type { AppRouteContribution } from '@nocobase/app-server/router';
 
@@ -37,6 +40,9 @@ const routes: readonly AppRouteContribution<Application>[] = [
   approvals,
   finance,
   organization,
+  tenantOperations,
+  operationsDelivery,
+  ...reportingFiles,
 ];
 
 export default routes;

@@ -686,3 +686,59 @@ label:has(> .sr-only:focus-visible),
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* Tenant phone flows reuse shared overlays, including portals outside the shell.
+ * These viewport dimensions deliberately follow the on-screen keyboard and zoom.
+ * Desktop presentation stays with RouteOverlay's built-in positioning. */
+@media (width < 48rem) {
+  [data-slot='route-overlay-content'][data-presentation='dialog'] {
+    top: calc(
+      var(--route-viewport-top, 0px) + var(--route-viewport-height, 100dvh) / 2
+    );
+    max-height: min(
+      calc(100dvh - 2rem),
+      calc(var(--route-viewport-height, 100dvh) - 2rem)
+    );
+  }
+  [data-slot='route-overlay-content'][data-presentation='drawer'] {
+    top: var(--route-viewport-top, 0px);
+    height: var(--route-viewport-height, 100dvh);
+    max-height: var(--route-viewport-height, 100dvh);
+  }
+  [data-slot='route-overlay-header'],
+  [data-slot='route-overlay-body'],
+  [data-slot='route-overlay-footer'] {
+    padding: 1rem;
+  }
+  [data-slot='route-overlay-header'] {
+    padding-right: 3.5rem;
+    overflow-wrap: anywhere;
+  }
+  [data-slot='route-overlay-footer'] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  [data-slot='route-overlay-body'] {
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+  }
+  .app-mobile-surface [data-slot='page-header'] > div:nth-child(2) > * {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .app-mobile-surface [data-slot='page-container'] a[data-slot='button'] {
+    min-height: 2.75rem;
+  }
+  .app-mobile-surface [data-slot='business-form-footer'] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (width < 48rem) {
+  .app-mobile-surface [data-slot='mobile-record'] [data-slot='card-title'] a {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    overflow-wrap: anywhere;
+  }
+}

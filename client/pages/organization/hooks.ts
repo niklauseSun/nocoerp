@@ -11,6 +11,7 @@ export function useOrg<T>(
   path: string,
   query?: Record<string, string | number>,
   enabled = true,
+  refetchOnMount: boolean | 'always' = true,
 ) {
   const api = useApiClient(),
     { session } = useAuthentication(),
@@ -19,6 +20,7 @@ export function useOrg<T>(
     queryKey: ['organization', session?.user.id, revision, path, query],
     queryFn: () => api.request<T>({ path, query }),
     enabled,
+    refetchOnMount,
     placeholderData: (previous, old) =>
       old?.queryKey[1] === session?.user.id &&
       old?.queryKey[2] === revision &&

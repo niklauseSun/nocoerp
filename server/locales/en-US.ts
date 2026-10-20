@@ -1,6 +1,14 @@
 import type { LocaleResource } from '@nocobase/i18n';
 const enUS = {
   messages: {
+    tenantNotice: 'A notice or policy awaits reading. Open Tenant services.',
+    tenantServiceRequest:
+      'A tenant request needs handling. Open Tenant services.',
+    tenantServiceOverdue: 'A tenant request is overdue. Open Tenant services.',
+    operationFollowup:
+      'A business follow-up is due. Open Business todos to review.',
+    settlementConfirm:
+      'A settlement awaits confirmation. Open Business todos to confirm online or record offline confirmation.',
     title: 'Business reminder',
     contractExpired:
       'A contract has expired. Review its renewal or termination in Business todos.',

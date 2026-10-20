@@ -1,3 +1,8 @@
+import { TenantOperations } from '../tenant-operations/service.js';
+import { TenantService } from '../tenant-operations/tenant-service.js';
+import type { Followup } from '../tenant-operations/model.js';
+import { fail } from '../hyl/service.js';
+import { dayOf } from '../cashier/reports.js';
 import { ApiError } from '@nocobase/app-server/router';
 import { BillingService } from '../billing/service.js';
 import { RepairService } from '../repairs/service.js';
@@ -59,6 +64,80 @@ export class MessageSources {
           ...source,
           reason: end < day ? 'contractExpired' : 'contractExpiry',
           dueOn: end,
+        });
+    } else if (kind === 'bills' && type === 'operationFollowups') {
+      const note = await c
+        .repository<Followup>('hylOperationFollowups')
+        .findOne({ filter: { id, actor: access.actor } });
+      if (!note) fail('RECORD_NOT_FOUND', 'NOT_FOUND');
+      const current = await new TenantOperations(this.hyl).source(
+        access,
+        note.kind,
+        note.sourceId,
+        true,
+      );
+      source = {
+        number: current.name,
+        title: current.name,
+        path: `/tenantOperations/followup/${note.kind}/${note.sourceId}`,
+      };
+      const latest = await c
+        .repository<Followup>('hylOperationFollowups')
+        .findMany({
+          filter: {
+            kind: note.kind,
+            sourceId: note.sourceId,
+            actor: access.actor,
+          },
+          sort: (s) => [s.field('createdAt').desc(), s.field('id').desc()],
+          limit: 1,
+        });
+      const completed =
+        note.kind === 'bill' && BigInt(current.amountCents) === 0n;
+      if (note.nextDate <= day && latest[0]?.id === note.id && !completed)
+        result.push({
+          ...base,
+          ...source,
+          reason: 'operationFollowup',
+          dueOn: note.nextDate,
+        });
+    } else if (kind === 'bills' && type === 'tenantService') {
+      const r = await new TenantService(this.hyl).detail(access, id);
+      source = {
+        number: r.number,
+        title: r.title,
+        path: '/tenantOperations/service/' + id + '?view=tenantService',
+      };
+      if (r.allowedActions.includes('read'))
+        result.push({
+          ...base,
+          ...source,
+          reason: 'tenantNotice',
+          dueOn: r.start,
+        });
+      if (
+        r.allowedActions.some((a) => ['accept', 'reply', 'close'].includes(a))
+      )
+        result.push({
+          ...base,
+          ...source,
+          reason:
+            r.dueDate < day ? 'tenantServiceOverdue' : 'tenantServiceRequest',
+          dueOn: r.dueDate,
+        });
+    } else if (kind === 'bills' && type === 'settlements') {
+      const r = await this.hyl.detail(access, 'settlements', id);
+      source = {
+        number: r.number,
+        title: r.number,
+        path: '/settlements/' + id,
+      };
+      if (r.status === 'confirmation' && r.confirmationModes.length)
+        result.push({
+          ...base,
+          ...source,
+          reason: 'settlementConfirm',
+          dueOn: dayOf(r.createdAt),
         });
     } else if (kind === 'bills') {
       const r = await this.billing.billDetail(access, id);
@@ -158,6 +237,9 @@ export class MessageSources {
     const sets: [Kind, string, string][] = [
       ['contracts', 'contracts', 'hylContracts'],
       ['bills', 'bills', 'hylBills'],
+      ['bills', 'settlements', 'hylSettlements'],
+      ['bills', 'operationFollowups', 'hylOperationFollowups'],
+      ['bills', 'tenantService', 'hylTenantServiceRecords'],
       ['repairs', 'repairs', 'hylRepairOrders'],
       ['purchases', 'requests', 'hylPurchaseRequests'],
       ['purchases', 'orders', 'hylPurchaseOrders'],

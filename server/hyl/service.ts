@@ -734,7 +734,11 @@ export class HylService {
       return result;
     });
   }
-  async generate(access: Access, input: unknown): Promise<Row> {
+  async generate(
+    access: Access,
+    input: unknown,
+    batchItemId?: string,
+  ): Promise<Row> {
     const data = schemas.settlements.parse(input);
     const policy = await this.policy(access, 'settlements', 'write');
     const merchantPolicy = await this.policy(access, 'merchants', 'read');
@@ -751,6 +755,24 @@ export class HylService {
         merchantPolicy,
       );
       await this.lockMerchant(c, merchant.id);
+      if (batchItemId) {
+        const previous = (
+          (await c
+            .repository<Row>(tables.settlements)
+            .withPolicy(policy)
+            .findMany({ filter: { merchantId: merchant.id } })) as Row[]
+        ).find((r) => r.payload.batchItemId === batchItemId);
+        if (previous) {
+          if (
+            previous.status === 'cancelled' ||
+            previous.payload.contractId !== data.contractId ||
+            previous.payload.month !== data.month ||
+            previous.payload.part !== data.part
+          )
+            fail('REQUEST_CONFLICT', 'ALREADY_EXISTS');
+          return previous;
+        }
+      }
       if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
       const contractRow = await this.get(
         access,
@@ -852,6 +874,7 @@ export class HylService {
       const id = randomUUID();
       const payload = {
         ...data,
+        ...(batchItemId ? { batchItemId } : {}),
         start,
         end,
         contract: contractRow.payload,

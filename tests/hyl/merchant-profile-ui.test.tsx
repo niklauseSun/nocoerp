@@ -21,6 +21,7 @@ const { api, permission, toaster } = vi.hoisted(() => ({
 vi.mock('@nocobase/app-client', async (original) => ({
   ...(await original<typeof import('@nocobase/app-client')>()),
   useApiClient: () => api,
+  useNavigationGuard: vi.fn(),
   useService: () => ({ repository: () => ({}) }),
   useToaster: () => toaster,
 }));

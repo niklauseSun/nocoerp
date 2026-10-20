@@ -1,4 +1,5 @@
 import { registerFinance } from '../finance/resources.js';
+import { tenantServiceLifecycle } from '../tenant-operations/delivery-model.js';
 import { approvalLifecycle, contractLifecycle } from '../approvals/model.js';
 import { parameters } from '../approvals/parameters.js';
 import { todoLifecycle } from '../messages/model.js';
@@ -54,6 +55,7 @@ export default class HylProvider extends ServiceProvider<Application> {
       runtime.register(reportingLifecycle('hylRevenueReports'));
       runtime.register(reportingLifecycle('hylExpenses'));
       runtime.register(settlementLifecycle);
+      runtime.register(tenantServiceLifecycle);
       runtime.register(leaseLifecycle);
       runtime.register(billLifecycle);
       runtime.register(splitLifecycle);
@@ -88,7 +90,49 @@ export default class HylProvider extends ServiceProvider<Application> {
     });
   }
   override async boot(): Promise<void> {
+    this.app.container.resolve(authorizationToken).settings.add({
+      id: 'hyl.integrationTesting',
+      title: { key: 'operations.integrations', ns: 'nocoerp' },
+      actions: [
+        { name: 'run', title: { key: 'operations.runTest', ns: 'nocoerp' } },
+      ],
+    });
+    this.app.container
+      .resolve(authorizationToken)
+      .ui.place(
+        { type: 'settings', id: 'hyl.integrationTesting' },
+        { section: 'hyl' },
+      );
+    this.app.container.resolve(authorizationToken).settings.add({
+      id: 'hyl.tenantService',
+      title: { key: 'operations.tenantService', ns: 'nocoerp' },
+      actions: [
+        {
+          name: 'manage',
+          title: { key: 'operations.serviceManage', ns: 'nocoerp' },
+        },
+      ],
+    });
+    this.app.container
+      .resolve(authorizationToken)
+      .ui.place(
+        { type: 'settings', id: 'hyl.tenantService' },
+        { section: 'hyl' },
+      );
     registerFinance(this.app.container.resolve(authorizationToken));
+    this.app.container.resolve(authorizationToken).settings.add({
+      id: 'hyl.externalReconciliation',
+      title: { key: 'operations.reconciliation', ns: 'nocoerp' },
+      actions: [
+        { name: 'write', title: { key: 'operations.import', ns: 'nocoerp' } },
+      ],
+    });
+    this.app.container
+      .resolve(authorizationToken)
+      .ui.place(
+        { type: 'settings', id: 'hyl.externalReconciliation' },
+        { section: 'hyl' },
+      );
     registerProcurement(this.app.container.resolve(authorizationToken));
     registerInspections(this.app.container.resolve(authorizationToken));
     registerRepairs(this.app.container.resolve(authorizationToken));
