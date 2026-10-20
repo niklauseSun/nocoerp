@@ -1,4 +1,57 @@
 export default {
+  newEmployee: 'New employee',
+  editEmployee: 'Edit employee',
+  resetEmployeePassword: 'Reset employee password',
+  resetPassword: 'Reset password',
+  username: 'Username (optional)',
+  initialPassword: 'Initial password',
+  newPassword: 'New password',
+  confirmPassword: 'Confirm password',
+  createEmployeeHint:
+    'Create an employee account and assign available roles. Maintain department and project access in their organization sections.',
+  editEmployeeNamed:
+    'Update identity details for {{name}} ({{email}}). Manage role grants in User roles.',
+  resetEmployeePasswordHint:
+    'Set a new password for {{name}} ({{email}}). Existing sessions will be revoked.',
+  disableEmployeeNamed: 'Disable employee {{name}}?',
+  enableEmployeeNamed: 'Enable employee {{name}}?',
+  disableEmployeeHint:
+    'The employee will be signed out and cannot sign in. Historical records remain.',
+  enableEmployeeHint:
+    'The employee can sign in again with their existing role and data access configuration.',
+  employeeCreated: 'Created employee {{name}}.',
+  employeeUpdated: 'Updated employee {{name}}.',
+  employeeDisabled: 'Disabled employee {{name}}.',
+  employeeEnabled: 'Enabled employee {{name}}.',
+  employeePasswordReset: 'Reset the password for {{name}}.',
+  staffNameRequired: 'Enter the employee name.',
+  staffEmailInvalid: 'Enter a valid email address.',
+  staffPasswordRequired: 'Enter a password that meets the system requirements.',
+  staffPasswordMismatch: 'The passwords do not match.',
+  staffRoleRequired: 'Select {{name}}.',
+  staffRoleChanged: 'Available roles have changed. Select roles again.',
+  staffRolesHint:
+    'Only assignable roles are listed. Without a role, only a sign-in account is created; business access is not granted automatically.',
+  chooseStaffRole: 'Choose a role',
+  noAssignableStaffRoles:
+    'No assignable roles. Contact your permissions administrator.',
+  staffMissingTitle: 'Employee not found in this list',
+  staffMissingHint:
+    'The employee may have changed or is outside the current filtered page. Close this dialog and search again.',
+  staffErrors: {
+    USER_IDENTITY_CONFLICT: 'The email or username is already in use.',
+    USER_EMAIL_CONFLICT: 'The email is already in use.',
+    PASSWORD_TOO_SHORT: 'The password is too short.',
+    PASSWORD_TOO_LONG: 'The password is too long.',
+    ROLE_SCOPE_REQUIRED: 'Select the required role.',
+    INVALID_ROLE_SCOPE_VALUE: 'Select a valid role.',
+    ROLE_SCOPE_NOT_FOUND: 'Role configuration has changed. Reopen the dialog.',
+    PROTECTED_ROLE_ASSIGNMENT: 'This protected role cannot be assigned here.',
+    LAST_ASSIGNMENT:
+      'This employee is the last active member of a protected role and cannot be disabled.',
+    INVALID_INPUT: 'Check the identity fields and try again.',
+  },
+
   edit: 'Edit',
 
   editDepartment: 'Edit department',

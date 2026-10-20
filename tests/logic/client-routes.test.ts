@@ -176,7 +176,7 @@ it('organization settings and all child sections require organization read', () 
   const rows = pageAuthorizations(resolveRoutes().routes).filter((r) =>
     r.name.startsWith('hyl-organization'),
   );
-  expect(rows.length).toBe(9);
+  expect(rows.length).toBe(12);
   expect(
     rows.every((r) => r.authorizedAs === 'settings:hyl.organization'),
   ).toBe(true);

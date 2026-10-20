@@ -1,7 +1,7 @@
 import en from '../../client/locales/en-US.js';
 import { useOrg } from '../../client/pages/organization/hooks.js';
 import { ErrorBox } from '../../client/pages/organization/common.js';
-import Users from '../../client/pages/organization/users.js';
+import Users from '../../client/pages/organization/users/index.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TestI18nProvider,

@@ -1,4 +1,54 @@
 export default {
+  newEmployee: '新增员工',
+  editEmployee: '编辑员工',
+  resetEmployeePassword: '重置员工密码',
+  resetPassword: '重置密码',
+  username: '登录用户名（可选）',
+  initialPassword: '初始密码',
+  newPassword: '新密码',
+  confirmPassword: '确认密码',
+  createEmployeeHint:
+    '创建员工登录账号并配置可分配的岗位。部门与项目归属在组织架构和项目权限中维护。',
+  editEmployeeNamed:
+    '维护“{{name}}”（{{email}}）的基本资料；岗位权限在用户角色中调整。',
+  resetEmployeePasswordHint:
+    '为“{{name}}”（{{email}}）设置新密码，成功后其现有登录会话将失效。',
+  disableEmployeeNamed: '停用员工“{{name}}”？',
+  enableEmployeeNamed: '启用员工“{{name}}”？',
+  disableEmployeeHint:
+    '停用后该员工无法登录，现有登录会话将失效；历史业务记录保留。',
+  enableEmployeeHint: '启用后该员工可重新登录，原岗位和数据权限保持原有配置。',
+  employeeCreated: '已创建员工“{{name}}”。',
+  employeeUpdated: '已更新员工“{{name}}”。',
+  employeeDisabled: '已停用员工“{{name}}”。',
+  employeeEnabled: '已启用员工“{{name}}”。',
+  employeePasswordReset: '已重置“{{name}}”的密码。',
+  staffNameRequired: '请输入员工姓名。',
+  staffEmailInvalid: '请输入有效的邮箱地址。',
+  staffPasswordRequired: '请输入密码，密码须符合系统规则。',
+  staffPasswordMismatch: '两次密码输入不一致。',
+  staffRoleRequired: '请选择“{{name}}”。',
+  staffRoleChanged: '可分配岗位已变化，请重新选择。',
+  staffRolesHint:
+    '仅列出可分配岗位。未选择岗位时只创建登录账号，不会自动授予业务权限。',
+  chooseStaffRole: '请选择岗位',
+  noAssignableStaffRoles: '暂无可分配岗位，请联系权限管理员。',
+  staffMissingTitle: '当前列表中未找到该员工',
+  staffMissingHint:
+    '该员工可能已被修改或不在当前筛选页，请关闭弹窗后重新搜索定位。',
+  staffErrors: {
+    USER_IDENTITY_CONFLICT: '邮箱或登录用户名已被使用，请修改后重试。',
+    USER_EMAIL_CONFLICT: '邮箱已被使用。',
+    PASSWORD_TOO_SHORT: '密码过短，请按系统密码规则重新输入。',
+    PASSWORD_TOO_LONG: '密码过长，请按系统密码规则重新输入。',
+    ROLE_SCOPE_REQUIRED: '缺少必选岗位，请选择后重试。',
+    INVALID_ROLE_SCOPE_VALUE: '所选岗位无效，请重新选择。',
+    ROLE_SCOPE_NOT_FOUND: '岗位配置已变化，请重新打开弹窗。',
+    PROTECTED_ROLE_ASSIGNMENT: '该受保护岗位不能在此分配。',
+    LAST_ASSIGNMENT: '该员工是受保护岗位的最后一名有效成员，不能停用。',
+    INVALID_INPUT: '输入资料不符合系统规则，请检查姓名、账号和邮箱等字段。',
+  },
+
   edit: '编辑',
 
   editDepartment: '编辑部门',

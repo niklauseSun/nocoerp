@@ -1721,7 +1721,25 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
       {
         name: 'hyl-organization-users',
         path: 'users',
-        componentLoader: () => import('./pages/organization/users.js'),
+        componentLoader: () => import('./pages/organization/users/index.js'),
+        children: [
+          {
+            name: 'hyl-organization-user-new',
+            path: 'new',
+            componentLoader: () => import('./pages/organization/users/new.js'),
+          },
+          {
+            name: 'hyl-organization-user-edit',
+            path: 'edit/:userId',
+            componentLoader: () => import('./pages/organization/users/edit.js'),
+          },
+          {
+            name: 'hyl-organization-user-password',
+            path: 'resetPassword/:userId',
+            componentLoader: () =>
+              import('./pages/organization/users/reset-password.js'),
+          },
+        ],
       },
     ],
   },

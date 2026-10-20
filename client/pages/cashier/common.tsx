@@ -125,6 +125,7 @@ export function Confirm({
   destructive = false,
   label,
   rich = false,
+  confirmDisabled = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,6 +135,7 @@ export function Confirm({
   busy: boolean;
   destructive?: boolean;
   rich?: boolean;
+  confirmDisabled?: boolean;
   label: string;
 }) {
   const { t } = useTranslation();
@@ -156,7 +158,7 @@ export function Confirm({
             {t('cashier.cancel')}
           </AlertDialogCancel>
           <AlertDialogAction
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             variant={destructive ? 'destructive' : 'default'}
             onClick={(e) => {
               e.preventDefault();

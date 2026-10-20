@@ -6,6 +6,7 @@ import {
   EmptyMedia,
   EmptyTitle,
   EmptyDescription,
+  EmptyContent,
 } from '#components/ui/empty';
 import type { ReactNode } from 'react';
 import { ApiClientError } from '@nocobase/app-client';
@@ -184,9 +185,11 @@ export interface Options {
 export function OrgEmpty({
   title,
   description,
+  action,
 }: {
   title: string;
   description: string;
+  action?: ReactNode;
 }) {
   return (
     <Empty className='min-h-32 rounded-lg border border-dashed'>
@@ -197,6 +200,7 @@ export function OrgEmpty({
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
+      {action ? <EmptyContent>{action}</EmptyContent> : null}
     </Empty>
   );
 }
