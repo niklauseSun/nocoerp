@@ -1,3 +1,4 @@
+import { useVisualViewport } from '#hooks/use-visual-viewport';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useTranslation } from '@nocobase/i18n/client';
 import { XIcon } from 'lucide-react';
@@ -62,6 +63,7 @@ export function RouteOverlay({
   drawer = false,
 }: RouteOverlayProps & { readonly drawer?: boolean }): ReactElement {
   const { t } = useTranslation();
+  const viewportStyle = useVisualViewport();
   const parentPopup = useContext(ParentPopupContext);
   const popupRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -135,6 +137,7 @@ export function RouteOverlay({
             <DialogPrimitive.Popup
               ref={popupRef}
               data-slot='route-overlay-content'
+              style={viewportStyle}
               data-presentation={drawer ? 'drawer' : 'dialog'}
               finalFocus={() => {
                 const previous = previousFocusRef.current;

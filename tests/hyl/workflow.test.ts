@@ -138,7 +138,7 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
     permissionSet: 'hyl-test-partial',
     subject: { type: 'user', id: member.id },
   });
-  const contract = await write(admin, '/contracts', {
+  let contract = await write(admin, '/contracts', {
     number: 'test-c1',
     merchantId: merchant.id,
     start: '2026-10-01',
@@ -154,6 +154,15 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
     includeCash: true,
     includeHospitality: false,
   });
+  // Start from a fresh SQLite database: cold authorization and ownMerchant scope
+  // resolution must complete before a write holds the single transaction connection.
+  contract = await write(
+    admin,
+    `/contracts/${contract.id}`,
+    { expectedVersion: contract.version, values: contract.payload },
+    'PATCH',
+  );
+  expect(contract.version).toBe(1);
   let revenue = await write(admin, '/revenueReports', {
     merchantId: merchant.id,
     date: '2026-10-10',
@@ -210,6 +219,16 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
       reference,
       evidence: '测试费用凭证',
     });
+    expense = await write(
+      admin,
+      `/expenses/${expense.id}`,
+      {
+        expectedVersion: expense.version,
+        values: { ...expense.payload, evidence: '更新费用凭证' },
+      },
+      'PATCH',
+    );
+    expect(expense.payload.evidence).toBe('更新费用凭证');
     expense = await write(admin, `/expenses/${expense.id}/submit`, {
       expectedVersion: expense.version,
     });
@@ -270,6 +289,18 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
     ((await monthList.json()) as { meta: { total: number } }).meta.total,
   ).toBe(1);
   let settlement = await write(admin, '/settlements', settlementInput);
+  const byContract = await admin.fetch(
+    '/settlements?q=' + encodeURIComponent(contract.number),
+  );
+  expect(
+    ((await byContract.json()) as { data: { id: string }[] }).data.map(
+      (row) => row.id,
+    ),
+  ).toContain(settlement.id);
+  const noMatch = await admin.fetch('/settlements?q=NO-SUCH-CONTRACT-SEARCH');
+  expect(
+    ((await noMatch.json()) as { meta: { total: number } }).meta.total,
+  ).toBe(0);
   expect(await dashboard(admin)).toMatchObject({
     unsettled: '0.00',
     unpaid: '0.00',
@@ -394,6 +425,16 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
     refunds: '0',
     collected: '100',
   });
+  ownedRevenue = await write(
+    ownerSession,
+    `/revenueReports/${ownedRevenue.id}`,
+    {
+      expectedVersion: ownedRevenue.version,
+      values: { ...ownedRevenue.payload, evidence: '商户补充凭证' },
+    },
+    'PATCH',
+  );
+  expect(ownedRevenue.payload.evidence).toBe('商户补充凭证');
   ownedRevenue = await write(
     ownerSession,
     `/revenueReports/${ownedRevenue.id}/submit`,

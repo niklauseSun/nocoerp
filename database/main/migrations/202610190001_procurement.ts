@@ -1,0 +1,11 @@
+import {defineMigration} from '@nocobase/db';
+export default defineMigration({name:'202610190001_procurement',async up({builder}){
+for(const name of ['hylPurchaseSuppliers','hylPurchaseRequests','hylPurchaseOrders','hylPurchaseReceipts','hylPurchasePayments','hylPurchaseLedger'])await builder.createCollection(name,c=>{
+c.string('id',{length:100,nullable:false});c.primary('id');c.string('number',{length:100,nullable:false});c.unique('number');
+for(const f of ['title','projectId','assetId','repairId','supplierId','requestId','orderId','sourceId','actor'])c.string(f,{length:100,nullable:false});
+for(const f of ['projectId','assetId','repairId','supplierId','requestId','orderId'])c.index(f);
+c.string('day',{length:10,nullable:false});c.string('type',{length:40,nullable:false});c.string('status',{length:40,nullable:false});c.index('status');c.integer('version',{nullable:false});c.integer('lifecycleVersion',{nullable:false});c.datetimeTz('statusChangedAt',{nullable:false});for(const f of ['amountCents','acceptedCents','paidCents'])c.string(f,{length:40,nullable:false});c.string('dedupeKey',{length:300,nullable:true});c.unique('dedupeKey');c.json('payload',{nullable:false});c.datetimeTz('createdAt',{nullable:false});c.datetimeTz('updatedAt',{nullable:false});
+});
+await builder.createCollection('hylPurchaseEvents',c=>{c.string('id',{length:100,nullable:false});c.primary('id');c.string('recordId',{length:100,nullable:false});c.index('recordId');c.string('kind',{length:30,nullable:false});c.integer('version',{nullable:false});c.string('actor',{length:100,nullable:false});c.string('action',{length:40,nullable:false});c.string('fromState',{length:40,nullable:false});c.string('toState',{length:40,nullable:false});c.json('payload',{nullable:false});c.datetimeTz('createdAt',{nullable:false});});
+await builder.createCollection('hylPurchaseOperations',c=>{c.string('id',{length:100,nullable:false});c.primary('id');c.string('actor',{length:100,nullable:false});c.string('hash',{length:64,nullable:false});c.json('result',{nullable:false});c.datetimeTz('createdAt',{nullable:false});});
+},async down({builder}){for(const name of ['hylPurchaseOperations','hylPurchaseEvents','hylPurchaseLedger','hylPurchasePayments','hylPurchaseReceipts','hylPurchaseOrders','hylPurchaseRequests','hylPurchaseSuppliers'])await builder.dropCollection(name);}});

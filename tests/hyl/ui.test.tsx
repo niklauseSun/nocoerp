@@ -1,3 +1,5 @@
+import { RecordPicker } from '../../client/pages/hyl/common.js';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiClientError } from '@nocobase/app-client';
 import {
@@ -20,6 +22,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   useApiClient: () => api,
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => permission,
 }));
 const runtime = await createTestI18nRuntime({
@@ -102,7 +105,7 @@ it('shares a Chinese calendar while preserving date-only and month-only values',
   );
   await userEvent.click(screen.getByRole('button', { name: '2026年10月1日' }));
   await userEvent.click(
-    screen.getByRole('button', { name: '2026年10月15日 星期四' }),
+    screen.getByRole('button', { name: /2026年10月15日 星期四$/ }),
   );
   expect(onChange).toHaveBeenLastCalledWith('2026-10-15');
   view.unmount();
@@ -119,7 +122,7 @@ it('shares a Chinese calendar while preserving date-only and month-only values',
   );
   await userEvent.click(screen.getByRole('button', { name: '2026年10月' }));
   await userEvent.click(
-    screen.getByRole('button', { name: '2026年10月15日 星期四' }),
+    screen.getByRole('button', { name: /2026年10月15日 星期四$/ }),
   );
   expect(onChange).toHaveBeenLastCalledWith('2026-10');
 });
@@ -159,4 +162,118 @@ it('preserves merchant and month drilldown filters in API requests and clears th
   expect(screen.getByRole('status')).toHaveTextContent('仅显示所选商户');
   await userEvent.click(screen.getAllByRole('button', { name: '清除筛选' })[0]);
   expect(router.state.location.search).toBe('');
+});
+
+vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
+  ...(await original<
+    typeof import('@nocobase/app-plugin-authentication/client')
+  >()),
+  useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
+}));
+
+it('shows contract title or merchant fallback with number, searches remotely and keeps selected captions', async () => {
+  const records = [
+    {
+      id: 'named',
+      number: 'HT-001',
+      name: '商户甲',
+      payload: { title: '春季租赁合同' },
+    },
+    {
+      id: 'unnamed',
+      number: 'HT-002',
+      name: '商户乙',
+      payload: { title: '  ' },
+    },
+  ];
+  api.request.mockImplementation(async (r) =>
+    r.path === 'contracts/named'
+      ? { data: records[0] }
+      : r.path === 'contracts/unnamed'
+        ? { data: records[1] }
+        : { data: records, meta: { page: 1, pageSize: 20, total: 2 } },
+  );
+  function Example() {
+    const [value, setValue] = useState('');
+    return (
+      <RecordPicker
+        id='contract'
+        kind='contracts'
+        value={value}
+        onChange={setValue}
+        merchantId='scope-merchant'
+      />
+    );
+  }
+  render(
+    <TestI18nProvider runtime={runtime}>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <Example />
+      </QueryClientProvider>
+    </TestI18nProvider>,
+  );
+  const user = userEvent.setup(),
+    input = screen.getByRole('combobox', { name: '合同 *' });
+  await user.type(input, '春季');
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'contracts',
+        query: expect.objectContaining({
+          q: '春季',
+          merchantId: 'scope-merchant',
+        }),
+      }),
+    ),
+  );
+  expect(
+    await screen.findByRole('option', { name: '春季租赁合同 · HT-001' }),
+  ).toBeVisible();
+  expect(screen.getByRole('option', { name: '商户乙 · HT-002' })).toBeVisible();
+  await user.click(
+    screen.getByRole('option', { name: '春季租赁合同 · HT-001' }),
+  );
+  expect(input).toHaveValue('春季租赁合同 · HT-001');
+  await user.click(screen.getByRole('button', { name: '清空合同选择' }));
+  expect(input).toHaveValue('');
+});
+
+it('restores a selected contract caption from its detail when it is off the current result page', async () => {
+  api.request.mockImplementation(async (r) =>
+    r.path === 'contracts/offpage'
+      ? {
+          data: {
+            id: 'offpage',
+            number: 'HT-OLD',
+            name: '历史商户',
+            payload: { title: '历史合同名称' },
+          },
+        }
+      : { data: [], meta: { page: 1, pageSize: 20, total: 0 } },
+  );
+  render(
+    <TestI18nProvider runtime={runtime}>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <RecordPicker
+          id='offpage'
+          kind='contracts'
+          value='offpage'
+          onChange={() => {}}
+        />
+      </QueryClientProvider>
+    </TestI18nProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('combobox', { name: '合同 *' })).toHaveValue(
+      '历史合同名称 · HT-OLD',
+    ),
+  );
 });

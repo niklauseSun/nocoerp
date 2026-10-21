@@ -1,3 +1,5 @@
+import zh from '../../client/locales/zh-CN.js';
+import { transformNavigation } from '../../client/lib/navigation-transform.js';
 import type { AppClientRegisteredRoute } from '@nocobase/app-client/plugins';
 import {
   act,
@@ -87,8 +89,8 @@ function shell(
 
 beforeEach(() => {
   localStorage.clear();
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('max-width') && window.innerWidth < 768,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
@@ -481,4 +483,47 @@ describe('sidebar shell', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
   });
+});
+
+it('renders Chinese business groups and automatically expands the selected workspace group', async () => {
+  const runtimeZh = await createTestI18nRuntime({
+    locale: 'zh-CN',
+    application: { namespace: 'nocoerp', resources: zh },
+  });
+  const work = {
+    ...page('mobile-workbench'),
+    packageName: 'nocoerp',
+    path: '/workbench',
+    navigation: { title: 'mobile.title' },
+  };
+  const merchant = {
+    ...page('hyl-merchants'),
+    packageName: 'nocoerp',
+    path: '/merchants',
+    navigation: { title: 'hyl.nav.merchants' },
+  };
+  const items = transformNavigation([
+    { route: merchant, children: [] },
+    { route: work, children: [] },
+  ]);
+  render(
+    <TestI18nProvider runtime={runtimeZh}>
+      {shell(items, routeKey(work), false)}
+    </TestI18nProvider>,
+  );
+  expect(
+    screen.getByRole('button', { name: '工作入口', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    screen.getByRole('link', { name: '工作台', exact: true }),
+  ).toHaveAttribute('href', '/workbench');
+  const tenants = screen.getByRole('button', { name: '租户经营', exact: true });
+  expect(tenants).toHaveAttribute('aria-expanded', 'false');
+  await userEvent.setup().click(tenants);
+  expect(
+    screen.getByRole('link', { name: '商户档案', exact: true }),
+  ).toHaveAttribute('href', '/merchants');
+  expect(
+    screen.getByRole('button', { name: '工作入口', exact: true }),
+  ).toHaveAttribute('aria-expanded', 'true');
 });

@@ -1,3 +1,24 @@
+import { ResponsiveTable } from '#components/responsive-table';
+import { useCoverFocus } from '../profit-sharing/focus.js';
+import { ReportingEvidence } from '../tenant-operations/evidence.js';
+import { ApprovalPanel } from '../approvals/panel.js';
+import { RepairRelated } from '../repairs/related.js';
+import { EnergyRelated } from '../energy/related.js';
+import { InvoiceRelated } from '../invoicing/related.js';
+import { SplitRelated } from '../profit-sharing/related.js';
+import { CashierContractEntry } from '../cashier/contract-entry.js';
+import { BillingContractCard } from '../billing/contract-card.js';
+import { LeaseStatus } from './lease/status.js';
+import { SettlementDebt } from './lease/debt.js';
+import { LeasePanel, LeaseActions } from './lease/panel.js';
+import {
+  MerchantAssetBindings,
+  ContractAssetSnapshots,
+} from '../assets/bindings.js';
+import { useEffect } from 'react';
+import { ApiClientError } from '@nocobase/app-client';
+import { useQueryClient, useIsFetching } from '@tanstack/react-query';
+import { MerchantRecords } from './merchant-profile/records.js';
 import { scalar } from './model.js';
 import { useBusinessQuery, useBusinessPermission } from './hooks.js';
 import { BackButton } from '#components/back-button';
@@ -13,8 +34,8 @@ import { useTranslation } from '@nocobase/i18n/client';
 import { PageContainer } from '#components/page-container';
 import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';
-import { RouteDrawer } from '#components/route-drawer';
 import { Button } from '#components/ui/button';
+import { StatusBadge } from '#components/status-badge';
 import { BusinessStatus } from './status.js';
 import { Card, CardHeader, CardTitle, CardContent } from '#components/ui/card';
 import {
@@ -51,13 +72,36 @@ function ActionLink({ kind, action }: { kind: Kind; action: string }) {
     </Button>
   );
 }
-export default function BusinessDetail() {
-  const { kind } = useOutletContext<{ kind: Kind }>(),
-    { id } = useParams(),
+export default function BusinessDetail({
+  kindOverride,
+}: { kindOverride?: Kind } = {}) {
+  useCoverFocus();
+  const context = useOutletContext<{ kind: Kind }>();
+  const kind = kindOverride ?? context.kind;
+  const { id } = useParams(),
     location = useLocation();
   const { t, i18n } = useTranslation();
   const result = useBusinessQuery<{ data: BusinessRow }>(`${kind}/${id}`);
-  const row = result.data?.data;
+  const row = result.error ? undefined : result.data?.data;
+  const client = useQueryClient();
+  const fetching = useIsFetching({ queryKey: ['hyl'] });
+  useEffect(() => {
+    if (result.error instanceof ApiClientError && result.error.status === 404)
+      void client.invalidateQueries({
+        queryKey: ['hyl', kind],
+        exact: false,
+      });
+  }, [result.error, client, kind]);
+  const parentSearch = new URLSearchParams(location.search);
+  for (const key of [
+    'licensePage',
+    'visitPage',
+    'contactPage',
+    'sourceId',
+    'ledgerPage',
+    'chargePage',
+  ])
+    parentSearch.delete(key);
   void location;
   const formatValue = (key: string, value: unknown): string => {
     if (value === undefined || value === null || value === '') return '—';
@@ -77,6 +121,7 @@ export default function BusinessDetail() {
       i18n.exists(`hyl.enums.${scalar(value)}`)
     )
       return t(`hyl.enums.${scalar(value)}`);
+    if (key === 'rate') return `${scalar(value)}%`;
     if (specs[kind].find((f) => f.key === key)?.type === 'money')
       return amountText(value, i18n.language);
     return scalar(value);
@@ -86,7 +131,10 @@ export default function BusinessDetail() {
       {availableActions(kind, row)
         .filter(
           (action) =>
-            action !== 'dispute' || row.confirmationModes?.includes('online'),
+            (action !== 'edit' ||
+              kind !== 'contracts' ||
+              !(row.lease as { version?: number })?.version) &&
+            (action !== 'dispute' || row.confirmationModes?.includes('online')),
         )
         .filter(
           (action) => action !== 'confirm' || row.confirmationModes?.length,
@@ -94,18 +142,60 @@ export default function BusinessDetail() {
         .map((action) => (
           <ActionLink key={action} kind={kind} action={action} />
         ))}
-      <Refresh busy={result.isFetching} onClick={() => void result.refetch()} />
+      {kind === 'contracts' && row && row.status !== 'draft' ? (
+        <LeaseActions row={row} />
+      ) : null}
+      <Refresh
+        busy={kind === 'merchants' ? fetching > 0 : result.isFetching}
+        onClick={() => {
+          if (['merchants', 'contracts', 'settlements'].includes(kind))
+            void client.invalidateQueries({ queryKey: ['hyl'] });
+          else void result.refetch();
+        }}
+      />
     </div>
   ) : null;
-  const short = kind === 'merchants';
   const content = result.isPending ? (
     <LoadingRows />
   ) : result.error ? (
     <ErrorPanel error={result.error} retry={() => void result.refetch()} />
   ) : row ? (
     <div className='flex flex-col gap-6'>
-      <BusinessStatus status={row.status} />
-      {!short ? actions : null}
+      {kind === 'contracts' ? (
+        <LeaseStatus status={row.leaseState ?? 'active'} />
+      ) : row.status === 'due' && row.debtRemaining !== undefined ? (
+        <StatusBadge tone='info'>
+          {t(
+            Number(row.debtRemaining) === 0
+              ? 'lease.collected'
+              : Number(row.debtRemaining) < -Number(row.amountCents) / 100
+                ? 'lease.partialCollection'
+                : 'lease.pendingCollection',
+          )}
+        </StatusBadge>
+      ) : (
+        <BusinessStatus status={row.status} />
+      )}
+
+      {kind === 'contracts' ? (
+        <ApprovalPanel kind='contracts' id={row.id} />
+      ) : null}
+      {kind === 'settlements' ? (
+        <>
+          <p className='text-sm text-muted-foreground'>
+            {t('mobile.confirmSummary')}
+          </p>
+          <SettlementDebt row={row} />
+        </>
+      ) : null}
+      {kind === 'revenueReports' || kind === 'expenses' ? (
+        <ReportingEvidence key={row.id} kind={kind} id={row.id} />
+      ) : null}
+      {kind === 'settlements' && row.payload.rentChannel === 'bill' ? (
+        <p className='text-sm text-muted-foreground'>
+          {t('billing.rentInBill')}
+        </p>
+      ) : null}
       {kind === 'settlements' ? (
         <>
           <Card>
@@ -119,13 +209,13 @@ export default function BusinessDetail() {
               </p>
             </CardHeader>
             <CardContent>
-              <dl className='grid gap-4 sm:grid-cols-2'>
+              <dl className='grid gap-4 md:grid-cols-2'>
                 {Object.entries(
                   (row.payload.amounts ?? {}) as Record<string, string>,
                 ).map(([key, value]) => (
                   <div
                     key={key}
-                    className='flex items-center justify-between gap-4'
+                    className='flex min-w-0 flex-wrap items-center justify-between gap-2'
                   >
                     <dt className='text-sm text-muted-foreground'>
                       {t(`hyl.fields.${key}`)}
@@ -135,7 +225,7 @@ export default function BusinessDetail() {
                     </dd>
                   </div>
                 ))}
-                <div className='flex justify-between gap-4'>
+                <div className='flex min-w-0 flex-wrap justify-between gap-2'>
                   <dt>{t('hyl.fields.paid')}</dt>
                   <dd>
                     {amountText(
@@ -147,21 +237,26 @@ export default function BusinessDetail() {
                     )}
                   </dd>
                 </div>
-                <div className='flex justify-between gap-4'>
-                  <dt>{t('hyl.fields.remaining')}</dt>
-                  <dd>
-                    {amountText(
-                      Number(
-                        (row.payload.amounts as Record<string, string>).payable,
-                      ) -
-                        (row.payments ?? []).reduce(
-                          (sum, p) => sum + Number(p.amount),
-                          0,
-                        ),
-                      i18n.language,
-                    )}
-                  </dd>
-                </div>
+                {Number(
+                  (row.payload.amounts as Record<string, string>).payable,
+                ) >= 0 ? (
+                  <div className='flex min-w-0 flex-wrap justify-between gap-2'>
+                    <dt>{t('hyl.fields.remaining')}</dt>
+                    <dd>
+                      {amountText(
+                        Number(
+                          (row.payload.amounts as Record<string, string>)
+                            .payable,
+                        ) -
+                          (row.payments ?? []).reduce(
+                            (sum, p) => sum + Number(p.amount),
+                            0,
+                          ),
+                        i18n.language,
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </CardContent>
           </Card>
@@ -170,7 +265,7 @@ export default function BusinessDetail() {
               <CardTitle>{t('hyl.copy.rules')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <dl className='grid grid-cols-[8rem_1fr] gap-4'>
+              <dl className='grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr] md:gap-4'>
                 {specs.contracts
                   .filter((f) => !['merchantId', 'notes'].includes(f.key))
                   .map((f) => (
@@ -197,7 +292,22 @@ export default function BusinessDetail() {
                 <CardTitle>{t(`hyl.copy.${key}`)}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className='overflow-x-auto'>
+                <ResponsiveTable
+                  labels={[
+                    'number',
+                    'date',
+                    ...(key === 'revenues'
+                      ? [
+                          'receipts',
+                          'refunds',
+                          'activity',
+                          'cash',
+                          'hospitality',
+                          'collected',
+                        ]
+                      : ['category', 'responsibility', 'amount']),
+                  ].map((k) => t('hyl.fields.' + k))}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -254,7 +364,7 @@ export default function BusinessDetail() {
                       )}
                     </TableBody>
                   </Table>
-                </div>
+                </ResponsiveTable>
               </CardContent>
             </Card>
           ))}
@@ -264,7 +374,12 @@ export default function BusinessDetail() {
             </CardHeader>
             <CardContent>
               {row.payments?.length ? (
-                <div className='overflow-x-auto'>
+                <ResponsiveTable
+                  titleIndex={1}
+                  labels={['date', 'reference', 'amount', 'actor'].map((k) =>
+                    t('hyl.fields.' + k),
+                  )}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -286,7 +401,7 @@ export default function BusinessDetail() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </ResponsiveTable>
               ) : (
                 <p className='text-sm text-muted-foreground'>
                   {t('hyl.copy.noItems')}
@@ -296,27 +411,64 @@ export default function BusinessDetail() {
           </Card>
         </>
       ) : (
-        <dl className='grid grid-cols-[8rem_1fr] gap-4'>
-          {specs[kind].map((spec) => (
-            <div key={spec.key} className='contents'>
-              <dt className='text-sm text-muted-foreground'>
-                {t(`hyl.fields.${spec.key}`)}
-              </dt>
-              <dd className='min-w-0 break-words'>
-                {spec.key === 'notes' ? (
-                  <LongText>
-                    {formatValue(spec.key, row.payload[spec.key])}
-                  </LongText>
-                ) : spec.key === 'merchantId' ? (
-                  row.name
-                ) : (
-                  formatValue(spec.key, row.payload[spec.key])
-                )}
-              </dd>
-            </div>
-          ))}
+        <dl className='grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr] md:gap-4'>
+          {specs[kind]
+            .filter(
+              (spec) =>
+                kind !== 'merchants' ||
+                spec.key !== 'categoryName' ||
+                row.payload.category === 'other',
+            )
+            .map((spec) => (
+              <div key={spec.key} className='contents'>
+                <dt className='text-sm text-muted-foreground'>
+                  {t(
+                    `hyl.fields.${kind === 'merchants' && spec.key === 'category' ? 'merchantCategory' : spec.key}`,
+                  )}
+                </dt>
+                <dd className='min-w-0 break-words'>
+                  {spec.type === 'notes' ? (
+                    <LongText>
+                      {formatValue(spec.key, row.payload[spec.key])}
+                    </LongText>
+                  ) : spec.key === 'merchantId' ? (
+                    row.name
+                  ) : (
+                    formatValue(spec.key, row.payload[spec.key])
+                  )}
+                </dd>
+              </div>
+            ))}
         </dl>
       )}
+      {kind === 'merchants' ? (
+        <>
+          <RepairRelated kind='merchant' id={row.id} />
+          <MerchantAssetBindings id={row.id} />
+          {(['license', 'visit', 'contact'] as const).map((type) => (
+            <MerchantRecords key={type} id={row.id} type={type} />
+          ))}
+        </>
+      ) : null}
+      {kind === 'settlements' ? (
+        <SplitRelated kind='settlement' id={row.id} />
+      ) : null}
+      {kind === 'contracts' && row.status !== 'draft' ? (
+        <>
+          <ContractAssetSnapshots id={row.id} />
+          <LeasePanel row={row} />
+          <RepairRelated kind='contract' id={row.id} />
+          <EnergyRelated
+            kind='contract'
+            id={row.id}
+            end={String(row.payload.end)}
+          />
+          <InvoiceRelated kind='contractId' id={row.id} />
+          <SplitRelated kind='contract' id={row.id} />
+          <BillingContractCard id={row.id} />
+          <CashierContractEntry />
+        </>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>{t('hyl.copy.events')}</CardTitle>
@@ -335,7 +487,9 @@ export default function BusinessDetail() {
                       ? t(`hyl.actions.${scalar(event.action)}`, {
                           resource: t(`hyl.nav.${kind}`),
                         })
-                      : scalar(event.action)}{' '}
+                      : i18n.exists(`lease.actions.${scalar(event.action)}`)
+                        ? t(`lease.actions.${scalar(event.action)}`)
+                        : scalar(event.action)}{' '}
                     · {scalar(event.actor)} ·{' '}
                     {new Intl.DateTimeFormat(i18n.language, {
                       dateStyle: 'short',
@@ -359,19 +513,22 @@ export default function BusinessDetail() {
   ) : null;
   return (
     <>
-      {short ? (
-        <RouteDrawer title={row?.name ?? t(`hyl.nav.${kind}`)} footer={actions}>
+      <RouteChildPage>
+        <PageContainer>
+          <BackButton
+            to={{ pathname: '..', search: parentSearch.toString() }}
+          />
+          <PageHeader
+            title={
+              kind === 'merchants'
+                ? (row?.name ?? t('hyl.nav.merchants'))
+                : (row?.number ?? t(`hyl.nav.${kind}`))
+            }
+            actions={actions}
+          />
           {content}
-        </RouteDrawer>
-      ) : (
-        <RouteChildPage>
-          <PageContainer>
-            <BackButton />
-            <PageHeader title={row?.number ?? t(`hyl.nav.${kind}`)} />
-            {content}
-          </PageContainer>
-        </RouteChildPage>
-      )}
+        </PageContainer>
+      </RouteChildPage>
       <Outlet context={{ kind, row, reload: () => result.refetch() }} />
     </>
   );

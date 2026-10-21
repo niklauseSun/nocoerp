@@ -1,3 +1,4 @@
+import { contractLifecycle } from '../approvals/model.js';
 import type { Row } from './schema.js';
 import {
   createRepositoryLifecycleStore,
@@ -76,9 +77,11 @@ export function creationRuntime(
     ),
   });
   runtime.register(
-    collection === 'hylSettlements'
-      ? settlementLifecycle
-      : reportingLifecycle(collection),
+    collection === 'hylContracts'
+      ? contractLifecycle
+      : collection === 'hylSettlements'
+        ? settlementLifecycle
+        : reportingLifecycle(collection),
   );
   return runtime;
 }

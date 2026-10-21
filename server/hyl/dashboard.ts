@@ -186,18 +186,28 @@ export async function loadDashboard(
       .repository<Row>(tables.settlements)
       .withPolicy(settlementsPolicy);
     let outstanding = 0n;
+    const balances: { id: string; payable: bigint }[] = [];
+    // Exhaust the scoped cursor before querying payments: SQLite streams hold
+    // the sole connection, so nested queries would wait for their own cursor.
     for await (const row of repo.findMany({
       filter: businessFilter('settlements', { view: 'unpaid' }),
     })) {
+      const settlement = row as Row;
+      balances.push({
+        id: settlement.id,
+        payable: BigInt(settlement.amountCents),
+      });
+    }
+    for (const balance of balances) {
       let paid = 0n;
       // Payment access is derived only from a settlement returned by the scoped read policy.
       for await (const payment of db
         .repository('hylPayments')
-        .findMany({ filter: { settlementId: row.id } }))
+        .findMany({ filter: { settlementId: balance.id } }))
         paid += cents(
           String((payment.payload as Record<string, unknown>).amount),
         );
-      const remaining = BigInt((row as Row).amountCents) - paid;
+      const remaining = balance.payable - paid;
       outstanding += remaining > 0n ? remaining : 0n;
     }
     unpaid = money(outstanding);

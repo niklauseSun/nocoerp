@@ -14,7 +14,10 @@ export function PageHeader({
   title,
 }: PageHeaderProps): ReactElement {
   return (
-    <header className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
+    <header
+      data-slot='page-header'
+      className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'
+    >
       <div className='min-w-0'>
         <h1 className='font-heading text-2xl font-semibold tracking-[-0.035em]'>
           {title}

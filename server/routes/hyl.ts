@@ -22,6 +22,14 @@ import { hylToken } from '../providers/hyl.js';
 import { kinds, schemas, actionSchema } from '../hyl/schema.js';
 
 const list = z.object({
+  from: z
+    .string()
+    .regex(/^$|^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^$|^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   view: viewSchema.optional(),
   month: monthSchema.optional(),
   q: z.string().max(100).default(''),

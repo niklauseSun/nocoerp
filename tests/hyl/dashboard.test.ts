@@ -1,5 +1,45 @@
 import { expect, it } from 'vitest';
-import { businessMonth, turnover } from '../../server/hyl/dashboard.js';
+import {
+  businessMonth,
+  loadDashboard,
+  turnover,
+} from '../../server/hyl/dashboard.js';
+import type { DatabaseManager, RepositoryPolicy } from '@nocobase/db';
+
+it('releases the settlement cursor before reading payments and includes more than 100 balances', async () => {
+  let settlementCursorOpen = false;
+  const database = {
+    repository: (name: string) => {
+      if (name === 'hylSettlements') {
+        return {
+          withPolicy: () => ({
+            async *findMany() {
+              settlementCursorOpen = true;
+              try {
+                for (let i = 0; i < 125; i++)
+                  yield { id: String(i), amountCents: '10000' };
+              } finally {
+                settlementCursorOpen = false;
+              }
+            },
+          }),
+        };
+      }
+      expect(name).toBe('hylPayments');
+      return {
+        async *findMany() {
+          // A streaming cursor owns SQLite's sole connection until exhausted.
+          expect(settlementCursorOpen).toBe(false);
+          yield { payload: { amount: '25.00' } };
+        },
+      };
+    },
+  } as unknown as DatabaseManager;
+  const result = await loadDashboard(database, async (kind) =>
+    kind === 'settlements' ? ({} as RepositoryPolicy) : null,
+  );
+  expect(result.unpaid).toBe('9375.00');
+});
 it('uses Shanghai calendar month at the UTC boundary and net turnover including vouchers', () => {
   expect(businessMonth(new Date('2026-09-30T15:59:59Z'))).toBe('2026-09');
   expect(businessMonth(new Date('2026-09-30T16:00:00Z'))).toBe('2026-10');

@@ -114,6 +114,40 @@ describe('settlement calculation', () => {
       ).payable,
     ).toBe('-100.00');
   });
+  it('prorates a partial first period while commission uses actual receipts', () => {
+    const amounts = calculateSettlement(
+      { ...contract, rate: '8', rent: '3000' },
+      [
+        {
+          receipts: '5000',
+          refunds: '100',
+          activity: '150',
+          cash: '50',
+          hospitality: '50',
+          collected: '4900',
+        },
+      ],
+      [],
+      '2026-10-17',
+      '2026-10-31',
+    );
+    expect(amounts).toMatchObject({
+      turnover: '5150.00',
+      feeBasis: '4900.00',
+      fee: '392.00',
+      rent: '1451.61',
+      payable: '3056.39',
+    });
+    expect(
+      calculateSettlement(
+        { ...contract, method: 'minimum', minimum: '3100', rent: '0' },
+        revenue,
+        [],
+        '2026-10-17',
+        '2026-10-31',
+      ).fee,
+    ).toBe('1500.00');
+  });
   it('rejects malformed money and identifies leap-year half-months', () => {
     expect(() => cents('1.001')).toThrow();
     expect(() => cents('-1')).toThrow();

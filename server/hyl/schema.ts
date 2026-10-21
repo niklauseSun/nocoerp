@@ -13,24 +13,70 @@ export const date = z
 const optionalText = (max: number) => text(max).default('');
 export const merchantSchema = z
   .object({
-    code: required(30),
+    // Accepted for older clients; the service owns generation and preserves it on edit.
+    code: optionalText(30),
+    creationId: z.string().uuid().optional(),
+    licenseFileId: z.string().uuid().optional(),
     name: required(100),
-    unit: required(100),
+    unit: optionalText(100),
+    assetId: z.union([z.string().uuid(), z.literal('')]).default(''),
+    bindingStart: z.union([date, z.literal('')]).default(''),
+    bindingEnd: z.union([date, z.literal('')]).default(''),
     category: optionalText(50),
+    categoryName: optionalText(50),
+    legalRepresentative: optionalText(100),
+    creditCode: text(18)
+      .regex(/^$|^[0-9A-Z]{18}$/)
+      .default(''),
+    businessHours: optionalText(500),
     contact: required(50),
     phone: required(30),
     accountName: required(100),
     bank: required(100),
     account: required(64),
     userId: optionalText(100),
+    // Accepted when an existing snapshot is resubmitted; canonicalized by the service.
+    userName: optionalText(100),
     notes: optionalText(1000),
     active: z.boolean().default(true),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      value.assetId &&
+      (!value.bindingStart ||
+        (value.bindingEnd && value.bindingEnd < value.bindingStart))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bindingStart'],
+        message: 'INVALID_PERIOD',
+      });
+    if (value.licenseFileId && !value.creationId)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['creationId'],
+        message: 'CREATION_ID_REQUIRED',
+      });
+    if (value.category === 'other' && !value.categoryName)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['categoryName'],
+        message: 'CATEGORY_NAME_REQUIRED',
+      });
+  });
 export const contractSchema = z
   .object({
-    number: required(50),
+    title: optionalText(100),
+    depositTarget: amount.default('0'),
+    // Older clients may send a number; identity is assigned by the service.
+    number: optionalText(50),
     merchantId: required(100),
+    assetIds: z
+      .array(z.string().uuid())
+      .max(50)
+      .refine((ids) => new Set(ids).size === ids.length)
+      .optional(),
     start: date,
     end: date,
     cycle: z.enum(['half', 'month']),

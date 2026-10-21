@@ -13,6 +13,14 @@ export interface BusinessRow {
   version: number;
   settlementId: string | null;
   payload: Record<string, unknown>;
+  lease?: unknown;
+  debtRemaining?: string;
+  allowedLeaseActions?: string[];
+  leaseState?: string;
+  leaseEnd?: string;
+  assetNames?: string;
+  depositTarget?: string | null;
+  depositBalance?: string | null;
   confirmationModes?: string[];
   events?: Record<string, unknown>[];
   payments?: Record<string, unknown>[];
@@ -41,8 +49,27 @@ export const specs: Record<Kind, FieldSpec[]> = {
   merchants: [
     f('code'),
     f('name'),
-    f('unit'),
-    f('category', undefined, undefined, true),
+    f('unit', undefined, undefined, true),
+    f('assetId', undefined, undefined, true),
+    f('bindingStart', 'date'),
+    f('bindingEnd', 'date', undefined, true),
+    f(
+      'category',
+      'select',
+      [
+        'merchantDining',
+        'merchantRetail',
+        'merchantCulture',
+        'merchantLeisure',
+        'merchantServices',
+        'other',
+      ],
+      true,
+    ),
+    f('categoryName', undefined, undefined, true),
+    f('legalRepresentative', undefined, undefined, true),
+    f('creditCode', undefined, undefined, true),
+    f('businessHours', 'notes', undefined, true),
     f('contact'),
     f('phone'),
     f('accountName'),
@@ -54,6 +81,8 @@ export const specs: Record<Kind, FieldSpec[]> = {
   ],
   contracts: [
     f('number'),
+    f('title', undefined, undefined, true),
+    f('depositTarget', 'money'),
     f('merchantId', 'merchant'),
     f('start', 'date'),
     f('end', 'date'),
@@ -120,7 +149,7 @@ export const specs: Record<Kind, FieldSpec[]> = {
 };
 export const states: Record<Kind, string[]> = {
   merchants: ['active', 'inactive'],
-  contracts: ['active'],
+  contracts: ['future', 'active', 'expired', 'terminated', 'closed'],
   revenueReports: ['draft', 'pending', 'approved', 'returned'],
   expenses: ['draft', 'pending', 'approved', 'returned'],
   settlements: [

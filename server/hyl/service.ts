@@ -1,8 +1,28 @@
+import {
+  editable as approvalEditable,
+  contractRule,
+  refuse as approvalRefuse,
+} from '../approvals/gate.js';
+import {
+  getAsset,
+  lockProjects,
+  createAssetBinding,
+} from '../assets/transactions.js';
+import { isLeaf, type Asset, bindingSchema } from '../assets/schema.js';
+import { assertCashReference } from '../billing/accounting.js';
+import { syncContract } from '../profit-sharing/projection.js';
+import { checkExpense, configAt } from '../billing/accounting.js';
+import { effectiveEntries, money, type Entry } from '../leases/model.js';
+import { actions as leaseActions } from '../leases/model.js';
+import { listLeases } from '../leases/list.js';
+import { getLease, effectiveEnd, displayLeaseState } from '../leases/model.js';
+import { assetPolicy } from '../providers/assets.js';
+import { saveContractAssets } from '../assets/contracts.js';
 import { businessFilter, type BusinessFilters } from './filters.js';
 import { loadDashboard } from './dashboard.js';
 import type { UserAdministrationService } from '@nocobase/app-plugin-authentication';
 import { creationRuntime } from './policy-lifecycle.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type {
   DatabaseManager,
   DatabaseConnection,
@@ -76,20 +96,51 @@ export class HylService {
     id: string,
     action = 'read',
     connection = this.db.connection(),
+    resolvedPolicy?: RepositoryPolicy,
   ): Promise<Row> {
-    const policy = await this.policy(access, kind, action);
+    const policy = resolvedPolicy ?? (await this.policy(access, kind, action));
     const row = await connection
       .repository<Row>(tables[kind])
       .withPolicy(policy)
       .findOne({ filter: { id } });
     if (!row) fail('RECORD_NOT_FOUND', 'NOT_FOUND');
+    if (
+      kind === 'contracts' &&
+      row.status === 'draft' &&
+      !['read', 'write'].includes(action)
+    )
+      approvalRefuse('APPROVAL_CONTRACT_DRAFT');
     return row as Row;
   }
   async list(access: Access, kind: Kind, input: ListInput) {
-    const repo = this.db
-      .repository<Row>(tables[kind])
-      .withPolicy(await this.policy(access, kind, 'read'));
-    const filter = businessFilter(kind, input);
+    const policy = await this.policy(access, kind, 'read');
+    const repo = this.db.repository<Row>(tables[kind]).withPolicy(policy);
+    if (kind === 'contracts')
+      return listLeases(this.db, policy, input, this, access);
+    let filter = businessFilter(kind, input);
+    if (kind === 'settlements' && input.q) {
+      // Search the signed source snapshot within the caller's existing settlement scope.
+      const base = businessFilter(kind, { ...input, q: '' });
+      const query = input.q.toLocaleLowerCase();
+      const matches = (await repo.findMany({ filter: base })).filter((row) => {
+        const contract = row.payload?.contract as
+          Record<string, unknown> | undefined;
+        return [
+          scalar(row.number),
+          scalar(row.name),
+          scalar(contract?.title),
+          scalar(contract?.number),
+        ].some((value) => value.toLocaleLowerCase().includes(query));
+      });
+      filter = buildFilter((f) =>
+        f.and([
+          base.root,
+          matches.length
+            ? f.or(matches.map((row) => f.string('id').eq(scalar(row.id))))
+            : f.string('id').eq('__no_source_match__'),
+        ]),
+      );
+    }
     const [column = 'updatedAt', direction = 'desc'] = input.orderBy.split(':');
     if (
       !['updatedAt', 'date', 'amountCents'].includes(column) ||
@@ -107,7 +158,15 @@ export class HylService {
       limit: input.pageSize,
     });
     return {
-      data: rows,
+      data:
+        kind === 'settlements'
+          ? await Promise.all(
+              rows.map(async (row) => ({
+                ...row,
+                ...(await this.debtView(access, row as Row)),
+              })),
+            )
+          : rows,
       meta: { total, page: input.page, pageSize: input.pageSize },
     };
   }
@@ -126,6 +185,54 @@ export class HylService {
       new Date(),
       month,
     );
+  }
+  private async debtView(
+    access: Access,
+    row: Row,
+  ): Promise<{ payload: Record<string, unknown>; debtRemaining?: string }> {
+    if (typeof row.payload.contractId !== 'string')
+      return { payload: row.payload };
+    let permitted = true;
+    try {
+      const policy = await this.policy(access, 'contracts', 'depositRead');
+      await this.get(
+        access,
+        'contracts',
+        row.payload.contractId,
+        'depositRead',
+        undefined,
+        policy,
+      );
+    } catch (error) {
+      if (error instanceof ApiError) permitted = false;
+      else throw error;
+    }
+    const snapshot = row.payload.contract as
+      Record<string, unknown> | undefined;
+    const payload =
+      !permitted && snapshot
+        ? {
+            ...row.payload,
+            contract: Object.fromEntries(
+              Object.entries(snapshot).filter(
+                ([key]) => key !== 'depositTarget',
+              ),
+            ),
+          }
+        : row.payload;
+    if (!permitted || row.status !== 'due') return { payload };
+    const entries = await this.db
+      .repository<Entry>('hylLeaseEntries')
+      .findMany({ filter: { contractId: row.payload.contractId } });
+    const applied = effectiveEntries(entries)
+      .filter(
+        (e) => e.sourceId === row.id && ['deduct', 'collect'].includes(e.kind),
+      )
+      .reduce((n, e) => n + BigInt(e.amountCents), 0n);
+    return {
+      payload,
+      debtRemaining: money(-BigInt(row.amountCents) - applied),
+    };
   }
   async detail(access: Access, kind: Kind, id: string) {
     const record = await this.get(access, kind, id);
@@ -157,11 +264,71 @@ export class HylService {
       )
         confirmationModes.push('offline');
     }
+    const allowedLeaseActions: string[] = [];
+    if (kind === 'contracts')
+      for (const action of leaseActions) {
+        try {
+          const policy = await this.policy(access, 'contracts', action);
+          await this.get(access, 'contracts', id, action, undefined, policy);
+          allowedLeaseActions.push(action);
+        } catch (error) {
+          if (!(error instanceof ApiError)) throw error;
+        }
+      }
+    const lease =
+      kind === 'contracts'
+        ? await getLease(this.db.connection(), record)
+        : undefined;
     return {
       ...record,
+      ...(kind === 'contracts' &&
+      record.status !== 'draft' &&
+      !allowedLeaseActions.includes('depositRead')
+        ? {
+            payload: Object.fromEntries(
+              Object.entries(record.payload).filter(
+                ([key]) => key !== 'depositTarget',
+              ),
+            ),
+          }
+        : {}),
+      ...(kind === 'settlements' ? await this.debtView(access, record) : {}),
       confirmationModes,
+      ...(kind === 'contracts' ? { allowedLeaseActions } : {}),
+      ...(lease
+        ? {
+            lease,
+            leaseState: displayLeaseState(
+              lease,
+              record,
+              new Date().toISOString().slice(0, 10),
+            ),
+          }
+        : {}),
       events: events
         .map((e) => e.payload)
+        .filter(
+          (e) =>
+            kind !== 'contracts' ||
+            (!scalar((e as Record<string, unknown>).action).startsWith(
+              'billing.',
+            ) &&
+              (allowedLeaseActions.includes('depositRead') ||
+                ![
+                  'receive',
+                  'refund',
+                  'deduct',
+                  'collect',
+                  'reverse',
+                  'reverseCollection',
+                  'charge',
+                  'confirmCharge',
+                  'cancelCharge',
+                  'renew',
+                  'closeLease',
+                  'reopenLease',
+                ].includes(scalar((e as Record<string, unknown>).action)))),
+        )
         .sort((a, b) =>
           scalar((a as Record<string, unknown>).at).localeCompare(
             scalar((b as Record<string, unknown>).at),
@@ -170,7 +337,7 @@ export class HylService {
       payments: payments.map((p) => p.payload),
     };
   }
-  private async event(
+  async event(
     c: DatabaseConnection,
     row: Row,
     access: Access,
@@ -192,7 +359,7 @@ export class HylService {
     });
   }
   /** Every merchant mutation performs this CAS first. It serializes source approval, contract changes and settlement claims without dialect-specific SQL. */
-  private async lockMerchant(c: DatabaseConnection, id: string): Promise<Row> {
+  async lockMerchant(c: DatabaseConnection, id: string): Promise<Row> {
     const repo = c.repository(tables.merchants);
     const row = (await repo.findOne({
       filter: { id },
@@ -205,7 +372,7 @@ export class HylService {
     if (result.updatedCount !== 1) fail('VERSION_CONFLICT', 'ABORTED');
     return row;
   }
-  private base(
+  base(
     kind: Kind,
     payload: Record<string, unknown>,
     _actor: string,
@@ -253,11 +420,95 @@ export class HylService {
     expectedVersion?: number,
   ): Promise<Row> {
     const payload = schemas[kind].parse(data) as Record<string, unknown>;
+    const creationId = kind === 'merchants' ? scalar(payload.creationId) : '';
+    const licenseFileId =
+      kind === 'merchants' ? scalar(payload.licenseFileId) : '';
+    if (id && (creationId || licenseFileId))
+      fail('INVALID_FIELD', 'INVALID_ARGUMENT');
+    delete payload.creationId;
+    delete payload.licenseFileId;
+    if (kind === 'merchants') {
+      delete payload.code;
+      delete payload.userName;
+      // Preserve the retry intent of legacy creates that carry only a unit label.
+      if (!payload.assetId) {
+        delete payload.assetId;
+        delete payload.bindingStart;
+        delete payload.bindingEnd;
+      }
+      if (payload.category !== 'other') payload.categoryName = '';
+    }
+    const requestHash = createHash('sha256')
+      .update(JSON.stringify({ payload, licenseFileId }))
+      .digest('hex');
     const policy = await this.policy(access, kind, 'write');
+    const assetAccess =
+      ((kind === 'merchants' && !!payload.assetId) || kind === 'contracts') &&
+      (payload.assetId ||
+        id ||
+        (Array.isArray(payload.assetIds) && payload.assetIds.length))
+        ? await assetPolicy(access, 'write').catch((cause) => {
+            if (
+              payload.assetId ||
+              (Array.isArray(payload.assetIds) && payload.assetIds.length)
+            )
+              throw cause;
+            return undefined;
+          })
+        : undefined;
+    const merchantPolicy =
+      kind === 'merchants'
+        ? undefined
+        : await this.policy(access, 'merchants', 'read');
+    const previousUser =
+      kind === 'merchants' && id && payload.userId
+        ? (
+            await this.get(
+              access,
+              kind,
+              id,
+              'write',
+              this.db.connection(),
+              policy,
+            )
+          ).userId
+        : '';
+    const linkingUser =
+      kind === 'merchants' &&
+      !!payload.userId &&
+      payload.userId !== previousUser;
+    if (linkingUser) {
+      const decision = await access.authorization.authorize({
+        resource: { type: 'user', id: scalar(payload.userId) },
+        action: 'read',
+      });
+      if (decision.effect === 'deny')
+        fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+    }
     return this.db.transaction(async (c) => {
+      if (creationId) {
+        const previous = await c
+          .repository('hylMerchantCreations')
+          .findOne({ filter: { id: creationId } });
+        if (previous) {
+          if (
+            previous.ownerId !== access.actor ||
+            previous.requestHash !== requestHash
+          )
+            fail('PROFILE_RETRY_CONFLICT', 'ALREADY_EXISTS');
+          return this.get(access, 'merchants', creationId, 'write', c, policy);
+        }
+        if (
+          await c
+            .repository('hylMerchants')
+            .exists({ filter: { id: creationId } })
+        )
+          fail('PROFILE_RETRY_CONFLICT', 'ALREADY_EXISTS');
+      }
       let old: Row | undefined;
       if (id) {
-        old = await this.get(access, kind, id, 'write', c);
+        // Reuse the policy resolved before opening SQLite's single-connection transaction.
+        old = await this.get(access, kind, id, 'write', c, policy);
         if (old.version !== expectedVersion)
           fail('VERSION_CONFLICT', 'ABORTED');
         if (
@@ -274,29 +525,68 @@ export class HylService {
           scalar(payload.merchantId),
           'read',
           c,
+          merchantPolicy,
         );
         await this.lockMerchant(c, merchant.id);
         if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
+      }
+      if (kind === 'merchants' && !payload.userId) payload.userName = '';
+      let chosenAsset: Asset | undefined;
+      const newBinding =
+        kind === 'merchants' &&
+        payload.assetId &&
+        (payload.assetId !== old?.payload.assetId ||
+          payload.bindingStart !== old?.payload.bindingStart ||
+          payload.bindingEnd !== old?.payload.bindingEnd);
+      if (kind === 'merchants' && payload.assetId) {
+        if (!assetAccess) fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+        if (id && old) {
+          const lock = await c.repository('hylMerchants').updateMany({
+            filter: { id, version: old.version },
+            values: { version: old.version },
+          });
+          if (lock.updatedCount !== 1) fail('VERSION_CONFLICT', 'ABORTED');
+        }
+        const asset = await getAsset(c, scalar(payload.assetId), assetAccess);
+        await lockProjects(c, [asset.projectId]);
+        chosenAsset = await getAsset(c, asset.id, assetAccess);
+        if (chosenAsset.projectId !== asset.projectId)
+          fail('VERSION_CONFLICT', 'ABORTED');
+        if (!isLeaf(chosenAsset.type))
+          fail('ASSET_LEAF_REQUIRED', 'INVALID_ARGUMENT');
+        payload.unit = chosenAsset.name;
       }
       if (kind === 'merchants' && payload.userId) {
         const user = await this.users
           .withConnection(c)
           .get(scalar(payload.userId));
-        if (!user) fail('USER_NOT_FOUND', 'INVALID_ARGUMENT');
+        if (user) payload.userName = user.name;
+        if (!user || (linkingUser && user.disabledAt))
+          fail('USER_NOT_FOUND', 'INVALID_ARGUMENT');
       }
       if (kind === 'contracts') {
+        if (id) await approvalEditable(c, 'contracts', id);
         const contracts = await c
           .repository<Row>(tables.contracts)
           .findMany({ filter: { merchantId: scalar(payload.merchantId) } });
-        if (
-          contracts.some(
-            (r) =>
-              r.id !== id &&
-              scalar(r.payload && r.payload.start) <= scalar(payload.end) &&
-              scalar(r.payload.end) >= scalar(payload.start),
+        for (const r of contracts) {
+          if (
+            r.id !== id &&
+            r.status === 'active' &&
+            String(r.payload.start) <= String(payload.end) &&
+            (await effectiveEnd(c, r)) >= String(payload.start)
           )
+            fail('CONTRACT_OVERLAP');
+        }
+        if (
+          id &&
+          (await c
+            .repository('hylBillingConfigs')
+            .exists({ filter: { contractId: id } }))
         )
-          fail('CONTRACT_OVERLAP');
+          fail('CONTRACT_IN_USE');
+        if (id && (await c.repository('hylLeases').exists({ filter: { id } })))
+          fail('CONTRACT_IN_USE');
         if (id) {
           const settlements = await c
             .repository(tables.settlements)
@@ -309,6 +599,13 @@ export class HylService {
             fail('CONTRACT_IN_USE');
         }
       }
+      if (kind === 'expenses')
+        await checkExpense(
+          c,
+          scalar(payload.merchantId),
+          scalar(payload.date),
+          scalar(payload.category),
+        );
       if (kind === 'revenueReports' || kind === 'expenses') {
         if (
           old &&
@@ -330,18 +627,59 @@ export class HylService {
         const contracts = await c
           .repository<Row>(tables.contracts)
           .findMany({ filter: { merchantId: scalar(payload.merchantId) } });
-        if (
-          !contracts.some((r) => {
-            const p = r.payload;
-            return (
-              scalar(p.start) <= scalar(payload.date) &&
-              scalar(p.end) >= scalar(payload.date)
-            );
-          })
-        )
-          fail('CONTRACT_NOT_COVERED');
+        let covered = false;
+        for (const r of contracts) {
+          const lease = await getLease(c, r);
+          if (
+            r.status === 'active' &&
+            String(r.payload.start) <= String(payload.date) &&
+            (await effectiveEnd(c, r)) >= String(payload.date) &&
+            lease.status !== 'closed'
+          )
+            covered = true;
+        }
+        if (!covered) fail('CONTRACT_NOT_COVERED');
       }
+      if (kind === 'merchants') {
+        if (payload.category !== 'other') payload.categoryName = '';
+        // Use the persisted identity on edit, including legacy merchant numbers.
+        // Cryptographic identifiers avoid MAX+1 races; the unique index is the final guard.
+        payload.code =
+          old?.number ?? `SH${randomBytes(12).toString('hex').toUpperCase()}`;
+      }
+      if (kind === 'contracts') {
+        if (payload.assetIds === undefined)
+          payload.assetIds = old?.payload.assetIds ?? [];
+      }
+      if (kind === 'contracts')
+        payload.number =
+          old?.number ?? `HT${randomBytes(12).toString('hex').toUpperCase()}`;
+      const approvalRule =
+        kind === 'contracts'
+          ? await contractRule(this.db, c, payload.assetIds)
+          : null;
       const values = this.base(kind, payload, access.actor, merchant);
+      if (
+        kind === 'contracts' &&
+        old?.status === 'active' &&
+        approvalRule?.enabled
+      ) {
+        if (
+          await c
+            .repository('hylContractAssets')
+            .exists({ filter: { contractId: old.id } })
+        )
+          approvalRefuse('APPROVAL_ACTIVE_LOCKED');
+        await this.runtime.fire('hylContracts', old.id, 'prepareApproval', {
+          actor: { id: access.actor },
+          transaction: c,
+          expect: { version: old.lifecycleVersion },
+        });
+      }
+      if (creationId) {
+        values.id = creationId;
+        values.merchantId = creationId;
+      }
       // Actor is maintained in the separate audit table; never accept actor or state from API input.
 
       const repo = c
@@ -385,7 +723,11 @@ export class HylService {
             transaction: c,
             expect: { version: old.lifecycleVersion },
           });
-      } else if (kind === 'revenueReports' || kind === 'expenses') {
+      } else if (
+        kind === 'revenueReports' ||
+        kind === 'expenses' ||
+        kind === 'contracts'
+      ) {
         // Creation is permitted only after checking both the business action and the actual scoped parent merchant.
         const created = await creationRuntime(
           this.db,
@@ -396,14 +738,119 @@ export class HylService {
           transaction: c,
         });
         result = created.record as unknown as Row;
+        if (kind === 'contracts' && !approvalRule?.enabled) {
+          await this.runtime.fire('hylContracts', result.id, 'activate', {
+            actor: { id: access.actor },
+            transaction: c,
+          });
+          result = await this.get(access, kind, result.id, 'read', c, policy);
+        }
       } else result = (await repo.createOne({ values })).record as Row;
+      if (chosenAsset && newBinding)
+        await createAssetBinding(
+          c,
+          chosenAsset,
+          result.id,
+          bindingSchema.parse({
+            requestId: creationId || randomUUID(),
+            assetId: chosenAsset.id,
+            start: payload.bindingStart,
+            end: payload.bindingEnd,
+            area: chosenAsset.lettableArea,
+          }),
+          access.actor,
+        );
+      if (kind === 'contracts') {
+        result = await this.get(access, kind, result.id, 'read', c, policy);
+        if (result.status === 'draft' && Array.isArray(payload.assetIds)) {
+          for (const aid of payload.assetIds) {
+            if (!assetAccess)
+              approvalRefuse('ACCESS_DENIED', 'PERMISSION_DENIED');
+            const a = await getAsset(c, String(aid), assetAccess);
+            if (!isLeaf(a.type)) approvalRefuse('ASSET_LEAF_REQUIRED');
+          }
+        }
+      }
+      if (
+        kind === 'contracts' &&
+        result.status === 'active' &&
+        Array.isArray(payload.assetIds) &&
+        (payload.assetIds.length ||
+          (old &&
+            Array.isArray(old.payload.assetIds) &&
+            old.payload.assetIds.length))
+      ) {
+        if (!assetAccess) fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+        await saveContractAssets(
+          c,
+          result,
+          payload.assetIds as string[],
+          assetAccess,
+          access.actor,
+        );
+      }
+      if (licenseFileId) {
+        const claim = await c.repository('hylMerchantFiles').updateMany({
+          filter: {
+            id: licenseFileId,
+            merchantId: creationId,
+            ownerId: access.actor,
+            linked: false,
+          },
+          values: { linked: true },
+        });
+        if (claim.updatedCount !== 1)
+          fail('PROFILE_FILE_CONFLICT', 'ALREADY_EXISTS');
+        const createdAt = new Date().toISOString();
+        const recordId = randomUUID();
+        await c.repository('hylMerchantRecords').createOne({
+          values: {
+            id: recordId,
+            merchantId: result.id,
+            type: 'license',
+            requestId: creationId,
+            actor: access.actor,
+            date: createdAt.slice(0, 10),
+            createdAt,
+            payload: {
+              requestId: creationId,
+              name: '营业执照',
+              category: '营业执照',
+              number: scalar(payload.creditCode),
+              start: '',
+              end: '',
+              permanent: false,
+              notes: '',
+              fileId: licenseFileId,
+            },
+          },
+        });
+        await this.event(c, result, access, 'profilelicense', { recordId });
+      }
+      if (creationId)
+        await c.repository('hylMerchantCreations').createOne({
+          values: {
+            id: creationId,
+            ownerId: access.actor,
+            requestHash,
+            createdAt: new Date().toISOString(),
+          },
+        });
       await this.event(c, result, access, old ? 'edit' : 'create');
       return result;
     });
   }
-  async generate(access: Access, input: unknown): Promise<Row> {
+  async generate(
+    access: Access,
+    input: unknown,
+    batchItemId?: string,
+  ): Promise<Row> {
     const data = schemas.settlements.parse(input);
     const policy = await this.policy(access, 'settlements', 'write');
+    const merchantPolicy = await this.policy(access, 'merchants', 'read');
+    const contractPolicy = await this.policy(access, 'contracts', 'read');
+    const revenuePolicy = await this.policy(access, 'revenueReports', 'read');
+    const expensePolicy = await this.policy(access, 'expenses', 'read');
     return this.db.transaction(async (c) => {
       const merchant = await this.get(
         access,
@@ -411,8 +858,27 @@ export class HylService {
         data.merchantId,
         'read',
         c,
+        merchantPolicy,
       );
       await this.lockMerchant(c, merchant.id);
+      if (batchItemId) {
+        const previous = (
+          (await c
+            .repository<Row>(tables.settlements)
+            .withPolicy(policy)
+            .findMany({ filter: { merchantId: merchant.id } })) as Row[]
+        ).find((r) => r.payload.batchItemId === batchItemId);
+        if (previous) {
+          if (
+            previous.status === 'cancelled' ||
+            previous.payload.contractId !== data.contractId ||
+            previous.payload.month !== data.month ||
+            previous.payload.part !== data.part
+          )
+            fail('REQUEST_CONFLICT', 'ALREADY_EXISTS');
+          return previous;
+        }
+      }
       if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
       const contractRow = await this.get(
         access,
@@ -420,13 +886,22 @@ export class HylService {
         data.contractId,
         'read',
         c,
+        contractPolicy,
       );
+      if (contractRow.status !== 'active')
+        approvalRefuse('APPROVAL_CONTRACT_DRAFT');
       const contract = schemas.contracts.parse(contractRow.payload);
-      const [start, end] = periodFor(data.month, data.part);
+      const [periodStart, periodEnd] = periodFor(data.month, data.part);
+      // Billing windows stay calendar-based; first and final periods charge only
+      // the inclusive contract intersection, including source claims and snapshots.
+      const start = contract.start > periodStart ? contract.start : periodStart;
+      const lease = await getLease(c, contractRow);
+      if (lease.status === 'closed') fail('LEASE_CLOSED');
+      const contractEnd = await effectiveEnd(c, contractRow);
+      const end = contractEnd < periodEnd ? contractEnd : periodEnd;
       if (
         contractRow.merchantId !== merchant.id ||
-        contract.start > start ||
-        contract.end < end ||
+        start > end ||
         (contract.cycle === 'month') !== (data.part === 'month')
       )
         fail('INVALID_PERIOD');
@@ -449,10 +924,10 @@ export class HylService {
       // Monetary sources are read through this operation's separately authorized source views.
       const revenueRepo = c
         .repository(tables.revenueReports)
-        .withPolicy(await this.policy(access, 'revenueReports', 'read'));
+        .withPolicy(revenuePolicy);
       const expenseRepo = c
         .repository(tables.expenses)
-        .withPolicy(await this.policy(access, 'expenses', 'read'));
+        .withPolicy(expensePolicy);
       const revenues = (await revenueRepo.findMany({
         filter: scope,
       })) as unknown as Row[];
@@ -485,8 +960,18 @@ export class HylService {
         )
       )
         fail('PERIOD_ALREADY_SETTLED', 'ALREADY_EXISTS');
+      for (const expense of expenses)
+        await checkExpense(
+          c,
+          merchant.id,
+          expense.date,
+          scalar(expense.payload.category),
+        );
+      const rentChannel =
+        (await configAt(c, contractRow.id, start))?.payload.rentChannel ??
+        'settlement';
       const amounts = calculateSettlement(
-        contract,
+        rentChannel === 'bill' ? { ...contract, rent: '0' } : contract,
         revenues.map((r) => schemas.revenueReports.parse(r.payload)),
         expenses.map((r) => schemas.expenses.parse(r.payload)),
         start,
@@ -495,12 +980,14 @@ export class HylService {
       const id = randomUUID();
       const payload = {
         ...data,
+        ...(batchItemId ? { batchItemId } : {}),
         start,
         end,
         contract: contractRow.payload,
         revenues,
         expenses,
         amounts,
+        rentChannel,
       };
       const row = this.base('settlements', payload, access.actor, merchant);
 
@@ -542,6 +1029,11 @@ export class HylService {
     id: string,
     action: string,
     body: ActionInput,
+    internal?: {
+      connection: DatabaseConnection;
+      policy: RepositoryPolicy;
+      merchantPolicy: RepositoryPolicy;
+    },
   ): Promise<Row> {
     const permission =
       action === 'submit'
@@ -551,14 +1043,24 @@ export class HylService {
           : action === 'pay'
             ? 'pay'
             : 'review';
-    return this.db.transaction(async (c) => {
-      const record = await this.get(access, kind, id, permission, c);
+    // Authorization (including ownMerchant scope queries) uses the root connection.
+    // Resolve it before acquiring SQLite's sole transaction connection.
+    const policy =
+      internal?.policy ?? (await this.policy(access, kind, permission));
+    const merchantPolicy =
+      internal?.merchantPolicy ??
+      (await this.policy(access, 'merchants', 'read'));
+    if (action === 'confirm' && body.confirmation !== 'online')
+      await this.policy(access, 'settlements', 'review');
+    const run = async (c: DatabaseConnection) => {
+      const record = await this.get(access, kind, id, permission, c, policy);
       const merchant = await this.get(
         access,
         'merchants',
         record.merchantId,
         'read',
         c,
+        merchantPolicy,
       );
       await this.lockMerchant(c, merchant.id);
       if (record.version !== body.expectedVersion)
@@ -568,7 +1070,27 @@ export class HylService {
         !body.reason.trim()
       )
         fail('REASON_REQUIRED', 'INVALID_ARGUMENT');
+      if (kind === 'expenses' && action !== 'return')
+        await checkExpense(
+          c,
+          record.merchantId,
+          record.date,
+          scalar(record.payload.category),
+        );
       if (kind !== 'settlements') {
+        const contracts = await c
+          .repository<Row>('hylContracts')
+          .findMany({ filter: { merchantId: record.merchantId } });
+        let covered = false;
+        for (const contract of contracts)
+          if (
+            contract.status === 'active' &&
+            String(contract.payload.start) <= record.date &&
+            (await effectiveEnd(c, contract)) >= record.date &&
+            (await getLease(c, contract)).status !== 'closed'
+          )
+            covered = true;
+        if (!covered) fail('CONTRACT_NOT_COVERED');
         if (record.settlementId) fail('RECORD_LOCKED');
         if (!['submit', 'approve', 'return'].includes(action))
           fail('INVALID_ACTION', 'INVALID_ARGUMENT');
@@ -585,7 +1107,6 @@ export class HylService {
           if (merchant.userId !== access.actor)
             fail('MERCHANT_CONFIRMATION_REQUIRED', 'PERMISSION_DENIED');
         } else {
-          await this.policy(access, 'settlements', 'review');
           if (!body.confirmedBy || !body.evidence)
             fail('CONFIRMATION_EVIDENCE_REQUIRED', 'INVALID_ARGUMENT');
         }
@@ -596,6 +1117,7 @@ export class HylService {
       if (action === 'dispute' && merchant.userId !== access.actor)
         fail('MERCHANT_CONFIRMATION_REQUIRED', 'PERMISSION_DENIED');
       if (action === 'pay') {
+        await assertCashReference(c, record.merchantId, body.reference);
         if (!body.reference || !body.date || cents(body.amount) <= 0n)
           fail('PAYMENT_REQUIRED', 'INVALID_ARGUMENT');
         if (
@@ -665,10 +1187,18 @@ export class HylService {
             });
         }
       }
+      if (kind === 'settlements')
+        await syncContract(
+          c,
+          this,
+          String(record.payload.contractId),
+          access.actor,
+        );
       void result;
       await this.event(c, updated.record, access, action, body);
       return updated.record;
-    });
+    };
+    return internal ? run(internal.connection) : this.db.transaction(run);
   }
 }
 

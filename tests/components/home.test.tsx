@@ -1,3 +1,15 @@
+// Billing summary children have their own tests; keep dashboard API response fixtures scoped to this view.
+vi.mock('../../client/pages/billing/home-cards.js', () => ({
+  HomeBillingCards: () => null,
+}));
+vi.stubGlobal(
+  'matchMedia',
+  vi.fn(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })),
+);
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiClientError } from '@nocobase/app-client';
 import {
@@ -23,6 +35,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
   useCan: () => permission,
+  useAuthorizationRevision: () => 0,
 }));
 vi.mock('@nocobase/app-plugin-authentication/client', () => ({
   useAuthentication: () => ({ refresh }),

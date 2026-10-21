@@ -1,3 +1,11 @@
+import { ResponsiveTable, MobileSort } from '#components/responsive-table';
+import { LeaseDateFilter } from './lease/date-filter.js';
+import { LeaseStatus } from './lease/status.js';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '#components/ui/tooltip';
 import { useBusinessPermission, useBusinessQuery } from './hooks.js';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { Link, Outlet, useLocation, useSearchParams } from 'react-router';
@@ -8,6 +16,7 @@ import { PageHeader } from '#components/page-header';
 import { Button } from '#components/ui/button';
 import { Input } from '#components/ui/input';
 import { Alert, AlertDescription } from '#components/ui/alert';
+import { StatusBadge } from '#components/status-badge';
 import { BusinessStatus } from './status.js';
 import {
   Table,
@@ -89,6 +98,9 @@ export function BusinessList({ kind }: { kind: Kind }) {
     page,
     pageSize: 20,
     orderBy,
+    ...(kind === 'contracts'
+      ? { from: params.get('from') ?? '', to: params.get('to') ?? '' }
+      : {}),
     ...(view ? { view } : {}),
     ...(month ? { month } : {}),
     ...(merchantId ? { merchantId } : {}),
@@ -132,6 +144,15 @@ export function BusinessList({ kind }: { kind: Kind }) {
         description={t('hyl.copy.description')}
         actions={
           <>
+            {kind === 'expenses' ? (
+              <Button
+                variant='outline'
+                nativeButton={false}
+                render={<Link to='purchaseLedger' />}
+              >
+                {t('procurement.ledger')}
+              </Button>
+            ) : null}
             {result.data &&
             (result.data.meta.total > 0 || q || status || view || merchantId) &&
             create.can
@@ -155,8 +176,12 @@ export function BusinessList({ kind }: { kind: Kind }) {
       <div className='flex flex-wrap items-center gap-2'>
         <Input
           ref={searchRef}
-          aria-label={t('hyl.copy.search')}
-          placeholder={t('hyl.copy.search')}
+          aria-label={t(
+            kind === 'contracts' ? 'lease.search' : 'hyl.copy.search',
+          )}
+          placeholder={t(
+            kind === 'contracts' ? 'lease.search' : 'hyl.copy.search',
+          )}
           className='sm:max-w-xs'
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -172,12 +197,41 @@ export function BusinessList({ kind }: { kind: Kind }) {
               { value: 'all', label: t('hyl.actions.all') },
               ...states[kind].map((v) => ({
                 value: v,
-                label: t(`hyl.states.${v}`),
+                label: t(
+                  kind === 'contracts'
+                    ? `lease.states.${v}`
+                    : `hyl.states.${v}`,
+                ),
               })),
             ]}
           />
         </div>
-        {q || status || view || merchantId ? (
+        {kind === 'contracts' ? (
+          <LeaseDateFilter
+            from={params.get('from') ?? ''}
+            to={params.get('to') ?? ''}
+            onChange={(from, to) =>
+              setParams(
+                (old) => {
+                  const n = new URLSearchParams(old);
+                  if (from) n.set('from', from);
+                  else n.delete('from');
+                  if (to) n.set('to', to);
+                  else n.delete('to');
+                  n.delete('page');
+                  return n;
+                },
+                { replace: true },
+              )
+            }
+          />
+        ) : null}
+        {q ||
+        status ||
+        view ||
+        merchantId ||
+        params.get('from') ||
+        params.get('to') ? (
           <Button
             variant='ghost'
             onClick={() => {
@@ -201,18 +255,33 @@ export function BusinessList({ kind }: { kind: Kind }) {
               <Store />
             </EmptyMedia>
             <EmptyTitle>
-              {q || status || view || merchantId
+              {q ||
+              status ||
+              view ||
+              merchantId ||
+              params.get('from') ||
+              params.get('to')
                 ? t('hyl.copy.noResults')
                 : t('hyl.copy.empty', { resource: title })}
             </EmptyTitle>
             <EmptyDescription>
-              {q || status || view || merchantId
+              {q ||
+              status ||
+              view ||
+              merchantId ||
+              params.get('from') ||
+              params.get('to')
                 ? t('hyl.actions.clear')
                 : t('hyl.copy.emptyHelp')}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            {q || status || view || merchantId ? (
+            {q ||
+            status ||
+            view ||
+            merchantId ||
+            params.get('from') ||
+            params.get('to') ? (
               <Button
                 variant='outline'
                 onClick={() => {
@@ -232,12 +301,55 @@ export function BusinessList({ kind }: { kind: Kind }) {
         </Empty>
       ) : (
         <>
-          <div className='overflow-x-auto rounded-lg border'>
+          <ResponsiveTable
+            enabled={['revenueReports', 'settlements'].includes(kind)}
+            labels={['number', 'name', 'date', 'amount', 'status', 'updatedAt']
+              .map((k) => t('hyl.fields.' + k))
+              .concat(t('mobile.actions'))}
+            sort={
+              <MobileSort
+                value={
+                  orderBy.endsWith(':desc')
+                    ? '-' + orderBy.split(':')[0]
+                    : orderBy.split(':')[0]
+                }
+                onChange={(v) =>
+                  update(
+                    'orderBy',
+                    v.replace(/^-/, '') +
+                      ':' +
+                      (v.startsWith('-') ? 'desc' : 'asc'),
+                  )
+                }
+                fields={['date', 'amountCents', 'updatedAt'].map((k) => ({
+                  value: k,
+                  label: t(
+                    'hyl.fields.' + (k === 'amountCents' ? 'amount' : k),
+                  ),
+                }))}
+              />
+            }
+          >
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('hyl.fields.number')}</TableHead>
                   <TableHead>{t('hyl.fields.name')}</TableHead>
+                  {kind === 'contracts' ? (
+                    <>
+                      <TableHead>{t('hyl.fields.title')}</TableHead>
+                      <TableHead>{t('assets.contractAssets')}</TableHead>
+                      <TableHead>
+                        {sortTitle('end', t('hyl.fields.end'))}
+                      </TableHead>
+                      <TableHead className='text-right'>
+                        {sortTitle('depositTarget', t('lease.target'))}
+                      </TableHead>
+                      <TableHead className='text-right'>
+                        {sortTitle('depositBalance', t('lease.balance'))}
+                      </TableHead>
+                    </>
+                  ) : null}
                   <TableHead>
                     {kind === 'merchants'
                       ? t('hyl.fields.unit')
@@ -265,10 +377,35 @@ export function BusinessList({ kind }: { kind: Kind }) {
                         className='font-medium underline-offset-4 hover:underline'
                         to={{ pathname: row.id, search: location.search }}
                       >
-                        {row.number}
+                        <Ellipsis text={row.number} />
                       </Link>
                     </TableCell>
-                    <TableCell>{row.name}</TableCell>
+                    <TableCell>
+                      <Ellipsis text={row.name} />
+                    </TableCell>
+                    {kind === 'contracts' ? (
+                      <>
+                        <TableCell>
+                          {scalar(row.payload.title) || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Ellipsis text={row.assetNames || '—'} />
+                        </TableCell>
+                        <TableCell className='whitespace-nowrap'>
+                          {row.leaseEnd ?? scalar(row.payload.end)}
+                        </TableCell>
+                        <TableCell className='text-right tabular-nums whitespace-nowrap'>
+                          {row.depositTarget === null
+                            ? '—'
+                            : amountText(row.depositTarget, i18n.language)}
+                        </TableCell>
+                        <TableCell className='text-right tabular-nums whitespace-nowrap'>
+                          {row.depositBalance === null
+                            ? '—'
+                            : amountText(row.depositBalance, i18n.language)}
+                        </TableCell>
+                      </>
+                    ) : null}
                     <TableCell>
                       {kind === 'merchants'
                         ? scalar(row.payload.unit)
@@ -285,7 +422,23 @@ export function BusinessList({ kind }: { kind: Kind }) {
                             )}
                     </TableCell>
                     <TableCell>
-                      <BusinessStatus status={row.status} />
+                      {kind === 'contracts' ? (
+                        <LeaseStatus status={row.leaseState ?? 'active'} />
+                      ) : row.status === 'due' &&
+                        row.debtRemaining !== undefined ? (
+                        <StatusBadge tone='info'>
+                          {t(
+                            Number(row.debtRemaining) === 0
+                              ? 'lease.collected'
+                              : Number(row.debtRemaining) <
+                                  -Number(row.amountCents) / 100
+                                ? 'lease.partialCollection'
+                                : 'lease.pendingCollection',
+                          )}
+                        </StatusBadge>
+                      ) : (
+                        <BusinessStatus status={row.status} />
+                      )}
                     </TableCell>
                     <TableCell>
                       {new Intl.DateTimeFormat(i18n.language, {
@@ -333,7 +486,7 @@ export function BusinessList({ kind }: { kind: Kind }) {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTable>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <p className='text-sm text-muted-foreground'>
               {t('hyl.copy.count', { total: result.data.meta.total, page })}
@@ -359,5 +512,20 @@ export function BusinessList({ kind }: { kind: Kind }) {
       )}
       <Outlet context={{ kind, reload: () => result.refetch() }} />
     </PageContainer>
+  );
+}
+
+function Ellipsis({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<span className='block max-w-48 truncate' tabIndex={0} />}
+      >
+        {text}
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className='max-w-xs break-words'>{text}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

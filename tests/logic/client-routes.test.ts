@@ -1,3 +1,4 @@
+import { buildRouteNavigation } from '../../client/routing/route-navigation.js';
 import {
   resolveAppClientContributions,
   type AppClientRegisteredRoute,
@@ -58,6 +59,12 @@ describe('app client routes', () => {
       'revenueReports',
       'expenses',
       'settlements',
+      'billing',
+      'cashier',
+      'energy',
+      'repairs',
+      'inspections',
+      'tenant-operations',
     ]) {
       const own = authorizations.filter((r) =>
         r.name.startsWith(`hyl-${kind}`),
@@ -65,17 +72,41 @@ describe('app client routes', () => {
       expect(own.length).toBeGreaterThan(1);
       expect(own.every((r) => r.authorizedAs === `hyl-${kind}`)).toBe(true);
     }
+    expect(
+      authorizations.filter((r) => r.name.startsWith('hyl-operation-log')),
+    ).toEqual([
+      { name: 'hyl-operation-logs', authorizedAs: 'unrestricted' },
+      { name: 'hyl-operation-log-detail', authorizedAs: 'unrestricted' },
+    ]);
     expect(authorizations.filter((r) => !r.name.startsWith('hyl-'))).toEqual([
+      { name: 'mobile-workbench', authorizedAs: null },
+      { name: 'mobile-workbench-todo', authorizedAs: null },
+      { name: 'mobile-workbench-approval', authorizedAs: 'hyl-approvals' },
       { name: 'home', authorizedAs: null },
       { name: 'inbox', authorizedAs: null },
+      { name: 'financial-reports', authorizedAs: 'hyl-financial-reports' },
+      {
+        name: 'financial-report-source',
+        authorizedAs: 'hyl-financial-reports',
+      },
+      ...[
+        'approvals',
+        'approval-detail',
+        'approval-configs',
+        'approval-config-new',
+        'approval-config-detail',
+      ].map((name) => ({ name, authorizedAs: 'hyl-approvals' })),
+      { name: 'message-todos', authorizedAs: null },
+      { name: 'message-todo', authorizedAs: null },
+      { name: 'message-preferences', authorizedAs: null },
     ]);
   });
 
-  it('keeps the inbox out of the application navigation', () => {
-    // The inbox is reached from the header's inbox button, so it deliberately declares no menu entry.
+  it('registers the personal message center navigation', () => {
     expect(
-      applicationRoutes[0].routes.find((route) => route.name === 'inbox'),
-    ).not.toHaveProperty('navigation');
+      applicationRoutes[0].routes.find((route) => route.name === 'inbox')
+        ?.navigation,
+    ).toMatchObject({ title: 'messages.title' });
   });
 });
 
@@ -134,3 +165,43 @@ function pageAuthorizations(
     ...pageAuthorizations(route.children ?? []),
   ]);
 }
+
+it('registers invoice navigation, local source and correction routes', () => {
+  const text = JSON.stringify(resolveRoutes().routes);
+  for (const name of [
+    'hyl-invoicing',
+    'hyl-invoice-sources',
+    'hyl-invoice-ledger',
+    'hyl-invoice-configs',
+    'hyl-contracts-invoice-config',
+  ])
+    expect(text).toContain(name);
+});
+
+it('organization settings and all child sections require organization read', () => {
+  const rows = pageAuthorizations(resolveRoutes().routes).filter((r) =>
+    r.name.startsWith('hyl-organization'),
+  );
+  expect(rows.length).toBe(12);
+  expect(
+    rows.every((r) => r.authorizedAs === 'settings:hyl.organization'),
+  ).toBe(true);
+});
+
+it('keeps workbench accessible by URL without exposing it in sidebar navigation', () => {
+  const routes = resolveRoutes().routes;
+  const workbench = routes.find((r) => r.name === 'mobile-workbench');
+  expect(workbench).toMatchObject({
+    path: '/workbench',
+    auth: 'required',
+    authz: 'skip',
+    componentLoader: expect.any(Function),
+  });
+  expect(workbench?.navigation).toBeUndefined();
+  const menu = JSON.stringify(buildRouteNavigation(routes, new Set()));
+  expect(menu).not.toContain('mobile-workbench');
+  expect(menu).not.toContain('/workbench');
+  expect(
+    workbench?.children?.some((r) => r.name === 'mobile-workbench-todo'),
+  ).toBe(true);
+});

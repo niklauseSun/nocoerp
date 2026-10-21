@@ -1,3 +1,7 @@
+import { Navigate, useLocation } from 'react-router';
+import { useIsMobile } from '#hooks/use-mobile';
+import { useQueryClient } from '@tanstack/react-query';
+import { HomeBillingCards } from '../billing/home-cards.js';
 import { Comparison } from './comparison.js';
 import { useState } from 'react';
 import { RevenuePanels, type RevenueAnalytics } from './revenue.js';
@@ -118,6 +122,16 @@ function MetricCard({ metric, data }: { metric: Metric; data: DashboardData }) {
   );
 }
 export default function HomePage() {
+  const mobile = useIsMobile(),
+    l = useLocation();
+  return mobile ? (
+    <Navigate to={{ pathname: '/workbench', search: l.search }} replace />
+  ) : (
+    <Dashboard />
+  );
+}
+function Dashboard() {
+  const billingCache = useQueryClient();
   const { t, i18n } = useTranslation();
   const { refresh: refreshSession } = useAuthentication();
   const [params, setParams] = useSearchParams();
@@ -163,10 +177,19 @@ export default function HomePage() {
         actions={
           <Refresh
             busy={result.isFetching}
-            onClick={() => void result.refetch()}
+            onClick={() => {
+              void result.refetch();
+              void billingCache.invalidateQueries({
+                queryKey: ['hyl', 'bills'],
+              });
+              void billingCache.invalidateQueries({
+                queryKey: ['hyl', 'receipts'],
+              });
+            }}
           />
         }
       />
+      <HomeBillingCards />
       <div className='flex flex-wrap items-end gap-3'>
         <Field className='w-full sm:w-56'>
           <FieldLabel htmlFor='dashboard-month'>

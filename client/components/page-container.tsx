@@ -17,6 +17,7 @@ export function PageContainer({
 }: PageContainerProps): ReactElement {
   return (
     <section
+      data-slot='page-container'
       className={cn('w-full space-y-6 p-6 md:p-8', className)}
       {...props}
     />
