@@ -90,6 +90,12 @@ export default {
   invalidDate: 'End date must not precede start date.',
   invalidLength: 'The value exceeds the allowed length.',
   invalidField: 'Check this field.',
+  searchAssignedContract: 'Search assigned contract numbers',
+  noAssignedContracts:
+    'This meter has no assigned contracts. Assign a contract in the meter details before creating a contract bill.',
+  optionalAssignment: 'Contract assignment (optional)',
+  optionalAssignmentHelp:
+    'Leave blank for a common-area reading; no contract bill will be generated.',
   publicMeter: 'Common-area reading (no contract bill)',
   submitRequired:
     'Current reading and evidence are required before submission.',

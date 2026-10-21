@@ -1,3 +1,4 @@
+import operationLogs from './operation-logs-en-US.js';
 import operations from './operations-en-US.js';
 import mobile from './mobile-en-US.js';
 import organization from './organization-en-US.js';
@@ -35,6 +36,7 @@ const enUS = {
   organization,
   mobile,
   operations,
+  operationLogs,
   assets,
   dashboard,
   lease,

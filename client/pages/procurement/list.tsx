@@ -200,38 +200,42 @@ export default function List({
           onChange={(v) => change('q', v)}
           placeholder={t('procurement.search')}
         />
-        <Choice
-          value={query.status}
-          onChange={(v) => change('status', v)}
-          ariaLabel={t('procurement.allStates')}
-          options={[
-            'draft',
-            'pending',
-            'approved',
-            'ordered',
-            'issued',
-            'accepted',
-            'settled',
-            'active',
-            'suspended',
-            'posted',
-            'reversed',
-            'cancelled',
-          ].map((v) => ({ value: v, label: t('procurement.states.' + v) }))}
-        />
-        <Choice
-          value={query.order}
-          onChange={(v) => change('order', v)}
-          options={[
-            '-updatedAt',
-            'number',
-            '-number',
-            'day',
-            '-day',
-            'amountCents',
-            '-amountCents',
-          ].map((v) => ({ value: v, label: t('procurement.sort.' + v) }))}
-        />
+        <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+          <Choice
+            value={query.status}
+            onChange={(v) => change('status', v)}
+            ariaLabel={t('procurement.allStates')}
+            options={[
+              'draft',
+              'pending',
+              'approved',
+              'ordered',
+              'issued',
+              'accepted',
+              'settled',
+              'active',
+              'suspended',
+              'posted',
+              'reversed',
+              'cancelled',
+            ].map((v) => ({ value: v, label: t('procurement.states.' + v) }))}
+          />
+        </div>
+        <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+          <Choice
+            value={query.order}
+            onChange={(v) => change('order', v)}
+            options={[
+              '-updatedAt',
+              'number',
+              '-number',
+              'day',
+              '-day',
+              'amountCents',
+              '-amountCents',
+            ].map((v) => ({ value: v, label: t('procurement.sort.' + v) }))}
+          />
+        </div>
         {filtered ? (
           <Button variant='ghost' onClick={clear}>
             {t('procurement.clear')}

@@ -17,7 +17,11 @@ import Operations from '../../client/pages/tenant-operations/index.js';
 import { drafts } from '../../client/pages/hyl/drafts.js';
 const { api, state } = vi.hoisted(() => ({
   api: { request: vi.fn() },
-  state: { mobile: true, can: true },
+  state: {
+    mobile: true,
+    can: true,
+    guard: undefined as undefined | (() => boolean),
+  },
 }));
 vi.mock('../../client/hooks/use-mobile.js', () => ({
   useIsMobile: () => state.mobile,
@@ -26,9 +30,24 @@ vi.mock('@nocobase/app-client', async (original) => ({
   ...(await original<typeof import('@nocobase/app-client')>()),
   useApiClient: () => api,
   useToaster: () => ({ show: vi.fn() }),
-  useNavigationGuard: vi.fn(),
+  useNavigationGuard: (guard: () => boolean) => {
+    state.guard = guard;
+  },
   useService: () => ({ repository: () => ({}) }),
 }));
+vi.mock('react-router', async (original) => {
+  const actual = await original<typeof import('react-router')>();
+  return {
+    ...actual,
+    useNavigate: () => {
+      const navigate = actual.useNavigate();
+      return (...args: Parameters<typeof navigate>) => {
+        if (!state.guard || state.guard()) return navigate(...args);
+        return Promise.resolve();
+      };
+    },
+  };
+});
 vi.mock('@nocobase/app-plugin-authentication/client', () => ({
   useAuthentication: () => ({ session: { user: { id: 'TEST-mobile' } } }),
 }));
@@ -118,6 +137,7 @@ beforeEach(() => {
   api.request.mockReset();
   state.mobile = true;
   state.can = true;
+  state.guard = undefined;
   drafts.clear();
 });
 afterEach(cleanup);
@@ -540,4 +560,30 @@ it('clears submitted dispute validation as Chinese input is corrected', async ()
   await user.type(text, 'TEST手机输入');
   expect(screen.queryByText('请填写此项。')).not.toBeInTheDocument();
   expect(api.request.mock.calls.some(([r]) => r.method === 'POST')).toBe(false);
+});
+
+it('uses one searchable merchant input for revenue reports with an inline clear action', async () => {
+  api.request.mockImplementation(async ({ path }) =>
+    path.startsWith('merchants/')
+      ? { data: { id: 'TEST-merchant', name: 'TEST商户', number: 'TEST-M' } }
+      : {
+          data: [{ id: 'TEST-merchant', name: 'TEST商户', number: 'TEST-M' }],
+          meta: { total: 1 },
+        },
+  );
+  mount(<BusinessForm />, '/revenueReports/new', 'revenueReports', 'new');
+  const user = userEvent.setup();
+  const input = await screen.findByRole('combobox', {
+    name: '商户',
+    exact: true,
+  });
+  expect(screen.queryByPlaceholderText('搜索名称、编号或参考号')).toBeNull();
+  await user.type(input, 'TEST');
+  await user.click(
+    await screen.findByRole('option', { name: 'TEST商户 · TEST-M' }),
+  );
+  const clear = screen.getByRole('button', { name: '取消商户选择' });
+  expect(clear.closest('[data-slot="input-group"]')).not.toBeNull();
+  await user.click(clear);
+  expect(input).toHaveValue('');
 });

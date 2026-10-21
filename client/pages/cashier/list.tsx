@@ -170,48 +170,56 @@ export default function CashierList() {
                     : 'cashier.search',
                 )}
               />
-              <Choice
-                ariaLabel={t('cashier.fields.status')}
-                value={query.status || 'all'}
-                onChange={(v) => set('status', v === 'all' ? '' : v)}
-                options={[
-                  'all',
-                  ...(kind === 'orders'
-                    ? ['draft', 'posted', 'voided']
-                    : kind === 'refunds'
-                      ? ['posted', 'partiallyCorrected', 'corrected']
-                      : ['confirmed']),
-                ].map((value) => ({
-                  value,
-                  label: t(
-                    value === 'all' ? 'cashier.all' : `cashier.states.${value}`,
-                  ),
-                }))}
-              />
-              {kind !== 'reconciliations' ? (
+              <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
                 <Choice
-                  ariaLabel={t('cashier.fields.containsMethod')}
-                  value={query.method ?? 'all'}
-                  onChange={(v) => set('method', v === 'all' ? '' : v)}
-                  options={['all', 'bank', 'cash', 'other'].map((value) => ({
+                  ariaLabel={t('cashier.fields.status')}
+                  value={query.status || 'all'}
+                  onChange={(v) => set('status', v === 'all' ? '' : v)}
+                  options={[
+                    'all',
+                    ...(kind === 'orders'
+                      ? ['draft', 'posted', 'voided']
+                      : kind === 'refunds'
+                        ? ['posted', 'partiallyCorrected', 'corrected']
+                        : ['confirmed']),
+                  ].map((value) => ({
                     value,
                     label: t(
                       value === 'all'
                         ? 'cashier.all'
-                        : `cashier.methods.${value}`,
+                        : `cashier.states.${value}`,
                     ),
                   }))}
                 />
+              </div>
+              {kind !== 'reconciliations' ? (
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                  <Choice
+                    ariaLabel={t('cashier.fields.containsMethod')}
+                    value={query.method ?? 'all'}
+                    onChange={(v) => set('method', v === 'all' ? '' : v)}
+                    options={['all', 'bank', 'cash', 'other'].map((value) => ({
+                      value,
+                      label: t(
+                        value === 'all'
+                          ? 'cashier.all'
+                          : `cashier.methods.${value}`,
+                      ),
+                    }))}
+                  />
+                </div>
               ) : all.can ? (
-                <Choice
-                  ariaLabel={t('cashier.fields.scope')}
-                  value={query.scope}
-                  onChange={(v) => set('scope', v)}
-                  options={['own', 'authorized'].map((value) => ({
-                    value,
-                    label: t(`cashier.${value}`),
-                  }))}
-                />
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                  <Choice
+                    ariaLabel={t('cashier.fields.scope')}
+                    value={query.scope}
+                    onChange={(v) => set('scope', v)}
+                    options={['own', 'authorized'].map((value) => ({
+                      value,
+                      label: t(`cashier.${value}`),
+                    }))}
+                  />
+                </div>
               ) : null}
               <LeaseDateFilter
                 label={t('cashier.fields.createdAt')}

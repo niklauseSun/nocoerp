@@ -1,18 +1,13 @@
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { DateField } from '../billing/common.js';
-import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { StatusBadge } from '#components/status-badge';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
 import { Field, FieldLabel, FieldError } from '#components/ui/field';
 import { useBusinessQuery } from '../hyl/hooks.js';
-import {
-  Choice,
-  Search,
-  Paged,
-  BillingError,
-  LoadingRows,
-} from '../cashier/common.js';
+import { Paged, BillingError } from '../cashier/common.js';
 import type {
   Kind,
   Row as Base,
@@ -114,6 +109,7 @@ export function Picker({
   value,
   caption,
   onChange,
+  disabled = false,
   error,
 }: {
   name: string;
@@ -121,77 +117,63 @@ export function Picker({
   query?: Record<string, string | number>;
   value: string;
   caption?: string;
+  disabled?: boolean;
   onChange: (id: string, label: string) => void;
   error?: string;
 }) {
   const { t } = useTranslation(),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
-    [picked, setPicked] = useState(''),
-    result = useBusinessQuery<
-      Page<{ id: string; name?: string; title?: string; number?: string }>
-    >(path, { ...query, q, page, pageSize: 20 });
+    { q, setQ, page, setPage } = useRecordSearchState(
+      path + JSON.stringify(query),
+    );
+  const result = useBusinessQuery<
+    Page<{ id: string; name?: string; title?: string; number?: string }>
+  >(path, { ...query, q, page, pageSize: 20 });
   return (
     <Field>
       <FieldLabel htmlFor={'cashier-' + name}>
         {t('procurement.fields.' + name)} {name === 'repairId' ? '' : '*'}
       </FieldLabel>
-      <Search
-        value={q}
-        onChange={(v) => {
+      <RecordSearch
+        disabled={disabled}
+        id={'cashier-' + name}
+        label={
+          t('procurement.fields.' + name) + (name === 'repairId' ? '' : ' *')
+        }
+        value={value}
+        caption={caption}
+        invalid={!!error}
+        scopeKey={path + JSON.stringify(query)}
+        placeholder={t('procurement.search')}
+        options={(result.isPlaceholderData ? [] : result.data?.data || []).map(
+          (r) => ({
+            value: r.id,
+            label: [r.number, r.name || r.title].filter(Boolean).join(' · '),
+          }),
+        )}
+        loading={result.isFetching}
+        onSearch={(v) => {
           setQ(v);
           setPage(1);
         }}
-        placeholder={t('procurement.search')}
+        onChange={onChange}
+        status={
+          result.error ? (
+            <BillingError
+              error={result.error}
+              retry={() => void result.refetch()}
+            />
+          ) : undefined
+        }
+        footer={
+          result.data && result.data.meta.total > 20 ? (
+            <Paged
+              meta={result.data.meta}
+              onChange={setPage}
+              busy={result.isFetching}
+            />
+          ) : undefined
+        }
       />
-      <Choice
-        id={'cashier-' + name}
-        value={value}
-        ariaLabel={t('procurement.choose')}
-        onChange={(v) => {
-          const r = result.data?.data.find((r) => r.id === v),
-            label = r
-              ? [r.number, r.name || r.title].filter(Boolean).join(' · ')
-              : '';
-          setPicked(label);
-          onChange(v, label);
-        }}
-        options={[
-          ...(value
-            ? [
-                {
-                  value,
-                  label:
-                    picked ||
-                    result.data?.data.find((r) => r.id === value)?.name ||
-                    result.data?.data.find((r) => r.id === value)?.title ||
-                    caption ||
-                    value,
-                },
-              ]
-            : []),
-          ...(!result.isPlaceholderData
-            ? (result.data?.data
-                .filter((r) => r.id !== value)
-                .map((r) => ({
-                  value: r.id,
-                  label: [r.number, r.name || r.title]
-                    .filter(Boolean)
-                    .join(' · '),
-                })) ?? [])
-            : []),
-        ]}
-      />
-      {result.error ? (
-        <BillingError
-          error={result.error}
-          retry={() => void result.refetch()}
-        />
-      ) : !result.data ? (
-        <LoadingRows />
-      ) : (
-        <Paged meta={result.data.meta} onChange={setPage} />
-      )}{' '}
       {error ? <FieldError>{error}</FieldError> : null}
     </Field>
   );

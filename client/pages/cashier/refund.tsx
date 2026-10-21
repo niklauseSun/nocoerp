@@ -1,3 +1,7 @@
+import { RecordSearch } from '#components/record-search';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { sourceRecordLabel } from '../hyl/source-record-label.js';
+import { formatMoney } from '../billing/format.js';
 import { useCashierPermission } from './permission.js';
 import { scalar } from '../hyl/model.js';
 import { today } from './helpers.js';
@@ -35,7 +39,6 @@ import {
   RecordPicker,
   DateField,
   Money,
-  Search,
   Paged,
   BillingError,
   LoadingRows,
@@ -77,7 +80,7 @@ function Restricted() {
   return t('billing.restricted');
 }
 function RefundForm({ merchant }: { merchant?: string }) {
-  const { t } = useTranslation(),
+  const { t, i18n } = useTranslation(),
     l = useLocation(),
     navigate = useNavigate(),
     path = useResolvedPath('.').pathname,
@@ -89,8 +92,9 @@ function RefundForm({ merchant }: { merchant?: string }) {
     allocate = useBusinessPermission('contracts', 'receiptAllocate'),
     billRead = useBusinessPermission('contracts', 'billingRead');
   const [merchantId, setMerchantId] = useState(merchant ?? ''),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
+    { q, setQ, page, setPage } = useRecordSearchState(
+      'refund-receipts:' + merchantId,
+    ),
     [values, setValues] = useState<RefundInput>(() => ({
       date: today(),
       reference: '',
@@ -369,58 +373,65 @@ function RefundForm({ merchant }: { merchant?: string }) {
               onChange={setMerchantId}
             />
           </Field>
-          <Search
-            value={q}
-            onChange={(v) => {
-              setQ(v);
+          <RecordSearch
+            id='cashier-refund-source'
+            label={t('cashier.sources')}
+            value=''
+            scopeKey={'refund-receipts:' + merchantId}
+            hasSelection={!!values.sources.length}
+            onClear={() => {
+              setSelected({});
+              update({ ...values, sources: [] });
+            }}
+            disabled={w.busy || !merchantId}
+            loading={receipts.isFetching}
+            options={(receipts.isPlaceholderData || values.sources.length >= 20
+              ? []
+              : (receipts.data?.data ?? [])
+            )
+              .filter(
+                (r) =>
+                  r.status !== 'voided' &&
+                  !values.sources.some((source) => source.receiptId === r.id),
+              )
+              .map((r) => ({
+                value: r.id,
+                label:
+                  sourceRecordLabel(r) +
+                  ' · ' +
+                  formatMoney(r.unusedCents, i18n.language, true),
+              }))}
+            onChange={(id) => {
+              if (w.busy || values.sources.length >= 20) return;
+              const r = receipts.data?.data.find((row) => row.id === id);
+              if (r && !values.sources.some((s) => s.receiptId === id))
+                void add(r);
+            }}
+            onSearch={(query) => {
+              setQ(query);
               setPage(1);
             }}
-            placeholder={t('cashier.receiptSearch')}
-          />
-          {receipts.error ? (
-            <BillingError
-              error={receipts.error}
-              retry={() => void receipts.refetch()}
-            />
-          ) : merchantId && !receipts.data ? (
-            <LoadingRows />
-          ) : null}
-          {receipts.data?.data
-            .filter((r) => r.status !== 'voided')
-            .map((r) => (
-              <label className='flex flex-wrap items-center gap-3' key={r.id}>
-                <Checkbox
-                  checked={values.sources.some((s) => s.receiptId === r.id)}
-                  disabled={
-                    w.busy ||
-                    (values.sources.length >= 20 &&
-                      !values.sources.some((s) => s.receiptId === r.id))
-                  }
-                  onCheckedChange={(checked) => {
-                    if (checked) void add(r);
-                    else
-                      update({
-                        ...values,
-                        sources: values.sources.filter(
-                          (s) => s.receiptId !== r.id,
-                        ),
-                      });
-                  }}
+            placeholder={t('hyl.copy.sourceSearch')}
+            status={
+              receipts.error ? (
+                <BillingError
+                  error={receipts.error}
+                  retry={() => void receipts.refetch()}
                 />
-                <span>{r.number}</span>
-                <span className='text-muted-foreground'>
-                  {t('cashier.fields.unusedCents')}
-                </span>
-                <Money cents={r.unusedCents} />
-              </label>
-            ))}
-          {receipts.data ? (
-            <Paged
-              meta={receipts.data.meta}
-              busy={w.busy || receipts.isFetching}
-              onChange={setPage}
-            />
-          ) : null}
+              ) : values.sources.length >= 20 ? (
+                <p role='status'>{t('hyl.copy.sourceLimit', { count: 20 })}</p>
+              ) : undefined
+            }
+            footer={
+              receipts.data && receipts.data.meta.total > 10 ? (
+                <Paged
+                  meta={receipts.data.meta}
+                  busy={w.busy || receipts.isFetching}
+                  onChange={setPage}
+                />
+              ) : undefined
+            }
+          />
           {w.errors.sources ? (
             <FieldError id='cashier-sources' tabIndex={-1}>
               {w.errors.sources}

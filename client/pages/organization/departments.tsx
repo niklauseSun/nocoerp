@@ -1,3 +1,6 @@
+import { departmentScope, scopedMembers } from './roster.js';
+import { Switch } from '#components/ui/switch';
+import { Label } from '#components/ui/label';
 import { DepartmentTree } from './department-tree.js';
 import { EmployeeList } from './employee-list.js';
 import { OrgEmpty } from './common.js';
@@ -31,17 +34,30 @@ export default function Departments() {
       departmentTitle: string;
     } | null>(null),
     names = new Map(Object.entries(r.data?.data.names ?? {}));
-  const [previousDepartment, setPreviousDepartment] = useState(d?.id);
+  const directOnly = q.get('directMembers') === 'true';
+  const viewKey = `${d?.id}/${directOnly}`;
+  const [previousDepartment, setPreviousDepartment] = useState(viewKey);
   // A changed target discards member action drafts before children render, including an A → B → A navigation.
-  if (previousDepartment !== d?.id) {
-    setPreviousDepartment(d?.id);
+  if (previousDepartment !== viewKey) {
+    setPreviousDepartment(viewKey);
     setRemove(null);
   }
   if (r.error && !r.data)
     return <ErrorBox error={r.error} retry={() => void r.refetch()} />;
   if (!r.data) return <LoadingRows />;
   const source = r.data.data.departments,
-    departmentSearch = q.get('departmentQ') ?? '';
+    departmentSearch = q.get('departmentQ') ?? '',
+    members = d
+      ? scopedMembers(
+          r.data.data.members,
+          departmentScope(source, d.id, directOnly),
+        )
+      : [];
+  const removalVisible =
+    !!remove &&
+    members.some(
+      (m) => m.userId === remove.id && m.departmentId === remove.departmentId,
+    );
   return (
     <>
       <div className='grid gap-4 lg:grid-cols-3'>
@@ -103,10 +119,25 @@ export default function Departments() {
             <>
               <Group
                 title={t('organization.departmentMembers', { name: d.title })}
-                description={t('organization.memberHint')}
+                description={t('organization.memberScopeHint')}
               >
-                {can.can ? (
-                  <div className='flex justify-end'>
+                <div className='flex flex-wrap items-center justify-between gap-3'>
+                  <div className='flex items-center gap-2'>
+                    <Switch
+                      id='org-direct-members'
+                      checked={directOnly}
+                      onCheckedChange={(checked) => {
+                        const next = new URLSearchParams(q);
+                        if (checked) next.set('directMembers', 'true');
+                        else next.delete('directMembers');
+                        setQ(next, { replace: true });
+                      }}
+                    />
+                    <Label htmlFor='org-direct-members'>
+                      {t('organization.directMembersOnly')}
+                    </Label>
+                  </div>
+                  {can.can ? (
                     <Button
                       nativeButton={false}
                       render={
@@ -123,18 +154,15 @@ export default function Departments() {
                     >
                       {t('organization.addDepartmentMember')}
                     </Button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
                 <ErrorBox error={w.error} />
-                {r.data.data.members.some(
-                  (x) => x.departmentId === d.id && x.active,
-                ) ? (
+                {members.length ? (
                   <EmployeeList
-                    key={d.id}
+                    key={viewKey}
                     department={d}
-                    members={r.data.data.members.filter(
-                      (x) => x.departmentId === d.id && x.active,
-                    )}
+                    departments={source}
+                    members={members}
                     profiles={r.data.data.memberProfiles}
                     names={names}
                     canUpdate={can.can}
@@ -143,7 +171,9 @@ export default function Departments() {
                     onChangePrimary={(member) => {
                       if (!can.can || w.busy) return;
                       void w.run(
-                        'organization/departments/' + d.id + '/members',
+                        'organization/departments/' +
+                          member.departmentId +
+                          '/members',
                         'PUT',
                         {
                           userId: member.userId,
@@ -155,9 +185,7 @@ export default function Departments() {
                     }}
                   />
                 ) : null}
-                {!r.data.data.members.some(
-                  (x) => x.departmentId === d.id && x.active,
-                ) ? (
+                {!members.length ? (
                   <OrgEmpty
                     title={t('organization.noMembers')}
                     description={t('organization.emptyMembersHelp')}
@@ -169,7 +197,7 @@ export default function Departments() {
         </div>
       </div>
       <Confirm
-        open={!!remove && remove.departmentId === d?.id}
+        open={removalVisible}
         error={w.error}
         label={t('organization.remove')}
         title={t('organization.removeMemberNamed', {
@@ -180,10 +208,10 @@ export default function Departments() {
         busy={w.busy}
         onCancel={() => setRemove(null)}
         onConfirm={() => {
-          if (d && remove && remove.departmentId === d.id)
+          if (remove && removalVisible)
             void w
               .run(
-                'organization/departments/' + d.id + '/members',
+                'organization/departments/' + remove.departmentId + '/members',
                 'PUT',
                 { userId: remove.id, active: false, primary: false },
                 remove.name,

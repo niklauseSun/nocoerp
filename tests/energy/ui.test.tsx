@@ -1,3 +1,5 @@
+import { Picker } from '../../client/pages/energy/common.js';
+import { LegacyPicker } from '../../client/pages/energy/legacy-picker.js';
 import { ApiClientError } from '@nocobase/app-client';
 import SourceList from '../../client/pages/energy/source-list.js';
 import EnergyDetail from '../../client/pages/energy/detail.js';
@@ -184,3 +186,179 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('clears a legacy candidate and notifies the adopting form to reset derived values', async () => {
+  const selected = vi.fn();
+  api.request.mockResolvedValue({
+    data: [
+      {
+        id: 'legacy-a',
+        meterCode: 'W-DEMO',
+        assetId: 'asset-a',
+        assetName: '铺位甲',
+        feeType: 'water',
+        start: '2026-10-01',
+        openingReading: '10',
+        multiplier: '1',
+        history: [],
+        historyTotal: 0,
+        draftCount: 0,
+        lastBillNumber: '',
+        lastBillEnd: '',
+      },
+    ],
+    meta: { page: 1, pageSize: 20, total: 1 },
+  });
+  mount(
+    <LegacyPicker
+      contractId='contract-a'
+      disabled={false}
+      onSelect={selected}
+    />,
+    '/picker',
+  );
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole('combobox', { name: zh.energy.legacyCandidates }),
+  );
+  await user.click(await screen.findByRole('option', { name: /W-DEMO/ }));
+  expect(selected).toHaveBeenLastCalledWith(
+    expect.objectContaining({ assetId: 'asset-a', meterCode: 'W-DEMO' }),
+  );
+  await user.click(
+    screen.getByRole('button', {
+      name: '清空' + zh.energy.legacyCandidates + '选择',
+    }),
+  );
+  expect(selected).toHaveBeenLastCalledWith(undefined);
+});
+
+it('labels the optional contract assignment and explains common-area readings', async () => {
+  mount(<EnergyForm />, '/energy/readings/new');
+  expect(await screen.findByText('合同绑定（选填）')).toBeVisible();
+  expect(
+    screen.getByRole('combobox', { name: '合同绑定（选填）' }),
+  ).toHaveAttribute('id', 'energy-reading-assignment');
+  expect(
+    screen.getByText('不选择合同绑定即为公区抄表，不生成合同账单。'),
+  ).toBeVisible();
+});
+
+it('prompts to bind a contract only for an unfiltered empty meter assignment list', async () => {
+  api.request.mockImplementation(async (r) => {
+    if (r.path === 'energyMeters')
+      return {
+        data: [{ id: 'meter', number: 'W-01', name: '测试水表' }],
+        meta: { page: 1, pageSize: 20, total: 1 },
+      };
+    if (r.path === 'energyMeters/meter')
+      return {
+        data: {
+          id: 'meter',
+          number: 'W-01',
+          name: '测试水表',
+          openingReading: '0',
+          multiplier: '1',
+          unit: 'm³',
+        },
+      };
+    return { data: [], meta: { page: 1, pageSize: 20, total: 0 } };
+  });
+  mount(<EnergyForm />, '/energy/readings/new');
+  const user = userEvent.setup(),
+    hint = '该水电表暂无已绑定合同。如需生成合同账单，请先到水电表中绑定合同。';
+  expect(screen.getByPlaceholderText('搜索已绑定的合同编号')).toBeVisible();
+  expect(screen.queryByText(hint)).toBeNull();
+  await user.click(screen.getByRole('combobox', { name: '水电表 *' }));
+  await user.click(
+    await screen.findByRole('option', { name: 'W-01 · 测试水表' }),
+  );
+  expect(await screen.findByText(hint)).toBeVisible();
+  await user.type(
+    screen.getByPlaceholderText('搜索已绑定的合同编号'),
+    'HT-MISSING',
+  );
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'energyAssignments',
+        query: expect.objectContaining({ meterId: 'meter', q: 'HT-MISSING' }),
+      }),
+    ),
+  );
+  expect(screen.queryByText(hint)).toBeNull();
+});
+
+it('uses contract names and merchant fallback in energy contract selections', async () => {
+  api.request.mockResolvedValue({
+    data: [
+      {
+        id: 'c1',
+        number: 'HT-1',
+        name: '商户甲',
+        payload: { title: '水电租赁合同' },
+      },
+      { id: 'c2', number: 'HT-2', name: '商户乙', payload: { title: '' } },
+    ],
+    meta: { page: 1, pageSize: 20, total: 2 },
+  });
+  mount(
+    <Picker kind='contracts' name='contractId' value='' onChange={() => {}} />,
+  );
+  await userEvent
+    .setup()
+    .click(screen.getByRole('combobox', { name: '合同 *' }));
+  expect(
+    await screen.findByRole('option', { name: '水电租赁合同 · HT-1' }),
+  ).toBeVisible();
+  expect(screen.getByRole('option', { name: '商户乙 · HT-2' })).toBeVisible();
+});
+
+it('shows contract names with numbers and binding dates in reading assignment options', async () => {
+  api.request.mockImplementation(async (r) => {
+    if (r.path === 'energyMeters')
+      return {
+        data: [{ id: 'meter', number: 'W-01', name: '水表' }],
+        meta: { page: 1, pageSize: 20, total: 1 },
+      };
+    if (r.path === 'energyMeters/meter')
+      return {
+        data: {
+          id: 'meter',
+          number: 'W-01',
+          name: '水表',
+          openingReading: '0',
+          multiplier: '1',
+        },
+      };
+    return {
+      data: [
+        {
+          id: 'assignment',
+          number: 'BIND-001',
+          contractNumber: 'HT-001',
+          contractTitle: '水表租赁合同',
+          contractMerchantName: '商户甲',
+          start: '2026-10-01',
+          end: '2026-10-31',
+          payload: { contractNumber: 'HT-001' },
+        },
+      ],
+      meta: { page: 1, pageSize: 20, total: 1 },
+    };
+  });
+  mount(<EnergyForm />, '/energy/readings/new');
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('combobox', { name: '水电表 *' }));
+  await user.click(await screen.findByRole('option', { name: 'W-01 · 水表' }));
+  const assignment = screen.getByRole('combobox', { name: '合同绑定（选填）' });
+  await user.click(assignment);
+  await user.click(
+    await screen.findByRole('option', {
+      name: '水表租赁合同 · HT-001 · 2026-10-01 · 2026-10-31',
+    }),
+  );
+  expect(assignment).toHaveValue(
+    '水表租赁合同 · HT-001 · 2026-10-01 · 2026-10-31',
+  );
+});

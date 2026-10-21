@@ -51,6 +51,8 @@ const options = {
       {
         key: 'app',
         label: '岗位',
+        labelI18nKey: 'page.roles',
+        labelI18nNs: 'TEST-missing-plugin-namespace',
         selection: 'multiple',
         requiredOnCreate: true,
         options: [
@@ -151,6 +153,8 @@ it('creates an employee using a modal and only assignable roles', async () => {
   const dialog = await screen.findByRole('dialog', { name: '新增员工' });
   await within(dialog).findByLabelText('员工姓名 *');
   expect(within(dialog).queryByText('受保护管理员')).toBeNull();
+  expect(within(dialog).getByText(/^用户角色/)).toBeVisible();
+  expect(within(dialog).queryByText('page.roles')).toBeNull();
   await user.type(within(dialog).getByLabelText('员工姓名 *'), '新员工');
   await user.type(within(dialog).getByLabelText('邮箱 *'), 'new@example.test');
   await user.type(

@@ -189,19 +189,31 @@ it('preserves edit values and required reason, sends CAS envelope', async () => 
   expect(saved).not.toHaveProperty('number');
 });
 it('selects available contract assets and removes a selection', async () => {
-  api.request.mockResolvedValue({
-    data: [
-      {
-        id: 'a1',
-        name: '一号铺位',
-        number: 'ZC1',
-        type: 'unit',
-        state: 'normal',
-        lettableArea: '10',
-      },
-    ],
-    meta: { total: 1, page: 1, pageSize: 20 },
-  });
+  const asset = {
+    id: 'a1',
+    name: '一号铺位',
+    number: 'ZC1',
+    type: 'unit',
+    state: 'normal',
+    lettableArea: '10',
+  };
+  api.request.mockImplementation(async ({ path }) =>
+    path === 'assets/a1'
+      ? { data: asset }
+      : {
+          data: [
+            {
+              id: 'a1',
+              name: '一号铺位',
+              number: 'ZC1',
+              type: 'unit',
+              state: 'normal',
+              lettableArea: '10',
+            },
+          ],
+          meta: { total: 1, page: 1, pageSize: 20 },
+        },
+  );
   function Selector() {
     const [ids, setIds] = useState<string[]>([]);
     return (
@@ -217,12 +229,16 @@ it('selects available contract assets and removes a selection', async () => {
     );
   }
   mount(<Selector />, '/test');
-  const checkbox = await screen.findByRole('checkbox', { name: /一号铺位/ });
-  await userEvent.click(checkbox);
-  expect(checkbox).toBeChecked();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('combobox', { name: '合同资产' }));
+  await user.click(
+    await screen.findByRole('option', { name: '一号铺位 · ZC1' }),
+  );
   expect(screen.getByRole('status')).toHaveTextContent('a1');
-  await userEvent.click(checkbox);
-  expect(checkbox).not.toBeChecked();
+  await user.click(
+    await screen.findByRole('button', { name: '一号铺位 · 移除' }),
+  );
+  expect(screen.getByRole('status')).toHaveTextContent('');
 });
 it('merchant binding summaries remain readable while write actions are hidden', async () => {
   permission.can = false;

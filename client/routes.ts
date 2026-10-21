@@ -1,3 +1,4 @@
+import { History } from 'lucide-react';
 import {
   Home,
   Network,
@@ -1665,6 +1666,21 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     name: 'message-preferences',
     path: '/messagePreferences',
     componentLoader: () => import('./pages/messages/preferences.js'),
+  },
+  {
+    name: 'hyl-operation-logs',
+    path: '/operationLogs',
+    auth: 'required',
+    authz: 'unrestricted',
+    navigation: { title: 'operationLogs.title', icon: History },
+    componentLoader: () => import('./pages/operation-logs/index.js'),
+    children: [
+      {
+        name: 'hyl-operation-log-detail',
+        path: ':id',
+        componentLoader: () => import('./pages/operation-logs/detail.js'),
+      },
+    ],
   },
   {
     name: 'hyl-organization',

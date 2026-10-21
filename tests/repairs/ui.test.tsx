@@ -1,3 +1,4 @@
+import filePlugin from '@nocobase/app-plugin-file/client';
 import { RepairPicker } from '../../client/pages/repairs/common.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -29,6 +30,7 @@ vi.mock('@nocobase/app-client', async (original) => ({
   ...(await original<typeof import('@nocobase/app-client')>()),
   useNavigationGuard: vi.fn(),
   useApiClient: () => api,
+  useService: () => ({ repository: () => ({}) }),
   useToaster: () => ({ show: vi.fn() }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
@@ -39,6 +41,7 @@ vi.mock('@nocobase/app-plugin-authorization/client', () => ({
 }));
 const runtime = await createTestI18nRuntime({
   locale: 'zh-CN',
+  namespaces: { '@nocobase/app-plugin-file': filePlugin().locales ?? {} },
   application: { namespace: 'nocoerp', resources: zh },
 });
 const order = {
@@ -246,11 +249,13 @@ it('suppresses stale picker options while a later page loads', async () => {
   expect(
     await screen.findByRole('combobox', { name: '报修资产 *', exact: true }),
   ).toBeVisible();
+  await user.click(
+    screen.getByRole('combobox', { name: '报修资产 *', exact: true }),
+  );
+  await screen.findByRole('option', { name: '首页资产' });
   await user.click(screen.getByRole('button', { name: '下一页', exact: true }));
   await waitFor(() =>
-    expect(
-      screen.queryByRole('combobox', { name: '报修资产 *', exact: true }),
-    ).toBeNull(),
+    expect(screen.queryByRole('option', { name: '首页资产' })).toBeNull(),
   );
   resolve({
     data: [{ id: 'a2', name: '第二页资产' }],
@@ -284,3 +289,196 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('uploads acceptance photos, removes one selection and saves only retained IDs', async () => {
+  let count = 0;
+  const writes: any[] = [];
+  api.request.mockImplementation(async (r) => {
+    if (r.path === 'repairFiles/uploadOne') {
+      const id = 'photo-' + ++count,
+        file = r.body.get('file');
+      return {
+        data: {
+          record: {
+            id,
+            filename: file.name,
+            ext: 'png',
+            mimeType: 'image/png',
+            size: file.size,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            contentUrl: '/main/uploads/repairPhotos/' + id + '.png',
+          },
+          createdTargets: [],
+        },
+      };
+    }
+    if (r.method === 'POST') {
+      writes.push(r);
+      throw new ApiClientError('failure', {
+        status: 500,
+        method: 'POST',
+        url: r.path,
+      });
+    }
+    return { data: order };
+  });
+  mount(<RepairForm />, '/repairs/order/accept');
+  const user = userEvent.setup();
+  await user.type(await screen.findByLabelText('说明 *'), '图片验收');
+  await user.upload(screen.getByLabelText('选择图片'), [
+    new File(['a'], '现场一.png', { type: 'image/png' }),
+    new File(['b'], '现场二.png', { type: 'image/png' }),
+  ]);
+  await screen.findByRole('button', { name: '移除图片: 现场一.png' });
+  expect(
+    screen.getByRole('button', { name: '预览图片: 现场一.png' }),
+  ).toBeVisible();
+  await user.click(
+    screen.getByRole('button', { name: '移除图片: 现场一.png' }),
+  );
+  expect(
+    screen.getByRole('button', { name: '选择图片', exact: true }),
+  ).toHaveFocus();
+  await user.click(
+    screen.getByRole('button', { name: '验收通过', exact: true }),
+  );
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', {
+      name: '验收通过',
+      exact: true,
+    }),
+  );
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].json.photoIds).toEqual(['photo-2']);
+  const uploads = api.request.mock.calls
+    .map(([r]) => r)
+    .filter((r) => r.path === 'repairFiles/uploadOne');
+  expect(uploads[0].query).toEqual({
+    assetId: 'asset',
+    orderId: 'order',
+    stage: 'acceptance',
+  });
+});
+
+it('blocks submit and close for mixed failed/in-flight photos until failures are cancelled and uploads finish', async () => {
+  let fail!: (reason: unknown) => void, finish!: (value: unknown) => void;
+  const first = new Promise((_r, reject) => {
+      fail = reject;
+    }),
+    second = new Promise((resolve) => {
+      finish = resolve;
+    });
+  let count = 0;
+  api.request.mockImplementation(async (r) =>
+    r.path === 'repairFiles/uploadOne'
+      ? ++count === 1
+        ? first
+        : second
+      : { data: order },
+  );
+  mount(<RepairForm />, '/repairs/order/accept');
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText('选择图片'), [
+    new File(['a'], '失败.png', { type: 'image/png' }),
+    new File(['b'], '处理中.png', { type: 'image/png' }),
+  ]);
+  await waitFor(() => expect(count).toBe(2));
+  expect(
+    screen.getByRole('button', { name: '验收通过', exact: true }),
+  ).toBeDisabled();
+  fail(new Error('File upload failed.'));
+  await screen.findByRole('button', { name: '重试上传: 失败.png' });
+  expect(
+    screen.getByRole('button', { name: '验收通过', exact: true }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: '取消', exact: true }),
+  ).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: '取消 失败.png' }));
+  expect(
+    screen.getByRole('button', { name: '验收通过', exact: true }),
+  ).toBeDisabled();
+  finish({
+    data: {
+      record: {
+        id: 'photo',
+        filename: '处理中.png',
+        ext: 'png',
+        mimeType: 'image/png',
+        size: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        contentUrl: '/main/uploads/repairPhotos/photo.png',
+      },
+      createdTargets: [],
+    },
+  });
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: '验收通过', exact: true }),
+    ).toBeEnabled(),
+  );
+});
+
+it('returns focus to the chooser after removing a photo from a full nine-photo selection', async () => {
+  const photos = Array.from({ length: 9 }, (_, i) => ({
+    id: 'photo-' + i,
+    filename: '现场' + i + '.png',
+    ext: 'png',
+    mimeType: 'image/png',
+    size: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    contentUrl: '/main/uploads/repairPhotos/photo-' + i + '.png',
+  }));
+  api.request.mockResolvedValue({
+    data: {
+      ...order,
+      status: 'reported',
+      photos: { report: photos, processing: [], acceptance: [] },
+    },
+  });
+  mount(<RepairForm />, '/repairs/order/edit');
+  const choose = await screen.findByRole('button', {
+    name: '选择图片',
+    exact: true,
+  });
+  expect(choose).toBeDisabled();
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: '移除图片: 现场0.png' }));
+  expect(choose).toBeEnabled();
+  await waitFor(() => expect(choose).toHaveFocus());
+});
+
+it('uses the shared contract title and merchant fallback in repair associations', async () => {
+  api.request.mockResolvedValue({
+    data: [
+      {
+        id: 'c1',
+        number: 'HT-1',
+        name: '商户甲',
+        payload: { title: '维修关联租约' },
+      },
+      { id: 'c2', number: 'HT-2', name: '商户乙', payload: { title: ' ' } },
+    ],
+    meta: { page: 1, pageSize: 20, total: 2 },
+  });
+  mount(
+    <RepairPicker
+      kind='contracts'
+      name='contractId'
+      value=''
+      onChange={() => {}}
+      required={false}
+    />,
+  );
+  await userEvent
+    .setup()
+    .click(screen.getByRole('combobox', { name: '租赁合同' }));
+  expect(
+    await screen.findByRole('option', { name: '维修关联租约 · HT-1' }),
+  ).toBeVisible();
+  expect(screen.getByRole('option', { name: '商户乙 · HT-2' })).toBeVisible();
+});

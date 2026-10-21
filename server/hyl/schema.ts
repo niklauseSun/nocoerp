@@ -18,7 +18,10 @@ export const merchantSchema = z
     creationId: z.string().uuid().optional(),
     licenseFileId: z.string().uuid().optional(),
     name: required(100),
-    unit: required(100),
+    unit: optionalText(100),
+    assetId: z.union([z.string().uuid(), z.literal('')]).default(''),
+    bindingStart: z.union([date, z.literal('')]).default(''),
+    bindingEnd: z.union([date, z.literal('')]).default(''),
     category: optionalText(50),
     categoryName: optionalText(50),
     legalRepresentative: optionalText(100),
@@ -32,11 +35,23 @@ export const merchantSchema = z
     bank: required(100),
     account: required(64),
     userId: optionalText(100),
+    // Accepted when an existing snapshot is resubmitted; canonicalized by the service.
+    userName: optionalText(100),
     notes: optionalText(1000),
     active: z.boolean().default(true),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (
+      value.assetId &&
+      (!value.bindingStart ||
+        (value.bindingEnd && value.bindingEnd < value.bindingStart))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['bindingStart'],
+        message: 'INVALID_PERIOD',
+      });
     if (value.licenseFileId && !value.creationId)
       ctx.addIssue({
         code: 'custom',

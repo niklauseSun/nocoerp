@@ -84,7 +84,10 @@ export default {
 
   collapseDepartment: 'Collapse {{name}}',
   expandDepartment: 'Expand {{name}}',
-  memberCount: '{{count}} direct members',
+  memberCount: '{{count}} members (including subdepartments)',
+  directMembersOnly: 'Direct members only',
+  memberScopeHint:
+    'Includes all subdepartments by default, with one row per employee. All department memberships are shown; at most one active primary department is allowed.',
   departmentMembers: '{{name}} · Employees',
   employeeName: 'Employee name',
   membershipType: 'Membership',

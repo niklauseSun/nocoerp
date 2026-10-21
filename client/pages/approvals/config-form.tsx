@@ -1,3 +1,4 @@
+import { LocalRecordSearch } from '#components/record-search';
 import { useBusinessIdentity } from '../hyl/hooks.js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBusinessQuery, useWrite, kinds } from './hooks.js';
@@ -202,10 +203,11 @@ export default function ConfigForm() {
             <Group title={t('approval.context')}>
               <label className='grid gap-2' htmlFor='cashier-projectId'>
                 {t('approval.project')}
-                <Choice
+                <LocalRecordSearch
                   id='cashier-projectId'
                   value={projectId}
-                  ariaLabel={t('approval.project')}
+                  label={t('approval.project')}
+                  scopeKey='approval-projects'
                   disabled={
                     !can.can ||
                     w.busy ||

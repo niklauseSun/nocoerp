@@ -1,3 +1,7 @@
+import { RecordSearch } from '#components/record-search';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { sourceRecordLabel } from '../hyl/source-record-label.js';
+import { formatMoney } from './format.js';
 import { fieldMessages } from './form-errors.js';
 import { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -18,7 +22,6 @@ import {
   FieldGroup,
 } from '#components/ui/field';
 import { Alert, AlertDescription } from '#components/ui/alert';
-import { Checkbox } from '#components/ui/checkbox';
 import { Input } from '#components/ui/input';
 import { Spinner } from '#components/ui/spinner';
 import {
@@ -41,7 +44,6 @@ import {
   Money,
   Paged,
   RecordPicker,
-  Search,
   TextField,
   Value,
 } from './common.js';
@@ -257,8 +259,9 @@ function ActionBody({
     [attempted, setAttempted] = useState(false),
     [confirm, setConfirm] = useState(false),
     [selected, setSelected] = useState<Record<string, Selected>>({}),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1);
+    { q, setQ, page, setPage } = useRecordSearchState(
+      'receipt-allocation:' + (row?.contractId ?? contract?.id ?? ''),
+    );
   const contractId = row?.contractId ?? contract?.id ?? '';
   const bills = useBusinessQuery<ListResponse<Bill>>(
     'bills',
@@ -290,13 +293,21 @@ function ActionBody({
       required={required}
       error={errors[key]}
       disabled={busy}
+      label={
+        key === 'reference' ? t('billing.fields.paymentReference') : undefined
+      }
       decimal={key === 'amount'}
     />
   );
   const validationErrors = (current = values, allocations = selected) => {
     const e: Record<string, string> = {};
     const keys = newReceipt
-      ? ['amount', 'date', 'reference', 'evidence']
+      ? [
+          'amount',
+          'date',
+          ...(current.method === 'bank' ? ['reference'] : []),
+          'evidence',
+        ]
       : action === 'deposit'
         ? ['amount', 'date', 'reason', 'evidence']
         : action === 'refund'
@@ -612,7 +623,9 @@ function ActionBody({
               />
             </Field>
           ) : null}
-          {newReceipt || action === 'refund' ? field('reference') : null}
+          {newReceipt || action === 'refund'
+            ? field('reference', !newReceipt || values.method === 'bank')
+            : null}
           {!newReceipt && action !== 'issue' && action !== 'allocate'
             ? field('reason')
             : null}
@@ -623,79 +636,80 @@ function ActionBody({
         </FieldGroup>
         {action === 'allocate' ? (
           <>
-            <Search
-              value={q}
-              placeholder={t('billing.searchSources')}
-              onChange={(v) => {
-                setQ(v);
-                setPage(1);
-              }}
-            />
-            {bills.error ? (
-              <BillingError
-                error={bills.error}
-                retry={() => void bills.refetch()}
+            <Field>
+              <FieldLabel htmlFor='billing-source-picker'>
+                {t('hyl.copy.sourceRecord')}
+              </FieldLabel>
+              <RecordSearch
+                id='billing-source-picker'
+                label={t('hyl.copy.sourceRecord')}
+                value=''
+                scopeKey={'receipt-allocation:' + contractId}
+                hasSelection={!!Object.keys(selected).length}
+                onClear={() => updateSelected({})}
+                disabled={busy}
+                loading={bills.isFetching}
+                options={(bills.isPlaceholderData ||
+                Object.keys(selected).length >= 50
+                  ? []
+                  : (bills.data?.data ?? [])
+                )
+                  .filter((b) => !selected[b.id])
+                  .map((b) => ({
+                    value: b.id,
+                    label:
+                      sourceRecordLabel(b) +
+                      ' · ' +
+                      formatMoney(b.remainingCents, i18n.language, true),
+                  }))}
+                onChange={(id) => {
+                  if (busy || Object.keys(selected).length >= 50) return;
+                  const b = bills.data?.data.find((row) => row.id === id);
+                  if (!b || selected[id]) return;
+                  updateSelected({
+                    ...selected,
+                    [b.id]: {
+                      billId: b.id,
+                      number: b.number,
+                      expectedBillVersion: b.version,
+                      amount: Math.min(
+                        Number(b.remainingCents) / 100,
+                        Math.max(
+                          0,
+                          Number(row?.unusedCents ?? 0) / 100 - total,
+                        ),
+                      ).toFixed(2),
+                    },
+                  });
+                }}
+                onSearch={(query) => {
+                  setQ(query);
+                  setPage(1);
+                }}
+                placeholder={t('hyl.copy.sourceSearch')}
+                status={
+                  bills.error ? (
+                    <BillingError
+                      error={bills.error}
+                      retry={() => void bills.refetch()}
+                    />
+                  ) : Object.keys(selected).length >= 50 ? (
+                    <p role='status'>
+                      {t('hyl.copy.sourceLimit', { count: 50 })}
+                    </p>
+                  ) : undefined
+                }
+                footer={
+                  bills.data && bills.data.meta.total > 20 ? (
+                    <Paged
+                      meta={bills.data.meta}
+                      busy={busy || bills.isFetching}
+                      onChange={setPage}
+                    />
+                  ) : undefined
+                }
               />
-            ) : !bills.data ? (
-              <LoadingRows />
-            ) : (
-              <>
-                {!bills.data.data.length ? (
-                  <p className='text-sm text-muted-foreground'>
-                    {t('billing.noSources')}
-                  </p>
-                ) : (
-                  bills.data.data.map((b) => (
-                    <label
-                      key={b.id}
-                      className='flex flex-wrap items-center gap-2 rounded-lg border p-3'
-                    >
-                      <Checkbox
-                        checked={!!selected[b.id]}
-                        disabled={
-                          busy ||
-                          (Object.keys(selected).length >= 50 &&
-                            !selected[b.id])
-                        }
-                        onCheckedChange={(checked) =>
-                          updateSelected(
-                            (() => {
-                              const next = { ...selected };
-                              if (checked)
-                                next[b.id] = {
-                                  billId: b.id,
-                                  number: b.number,
-                                  expectedBillVersion: b.version,
-                                  amount: Math.min(
-                                    Number(b.remainingCents) / 100,
-                                    Math.max(
-                                      0,
-                                      Number(row?.unusedCents ?? 0) / 100 -
-                                        total,
-                                    ),
-                                  ).toFixed(2),
-                                };
-                              else delete next[b.id];
-                              return next;
-                            })(),
-                          )
-                        }
-                      />
-                      <span>
-                        {b.number} · <Day value={b.start} /> —{' '}
-                        <Day value={b.end} />
-                      </span>
-                      <Money cents={b.remainingCents} />
-                    </label>
-                  ))
-                )}
-                <Paged
-                  meta={bills.data.meta}
-                  busy={bills.isFetching || busy}
-                  onChange={setPage}
-                />
-              </>
-            )}
+            </Field>
             <h2 className='text-base font-medium'>{t('billing.selected')}</h2>
             {Object.values(selected).map((s) => (
               <Field

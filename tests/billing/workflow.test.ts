@@ -117,7 +117,7 @@ test('bill rent once, deposit, partial/multi-bill allocations, refunds, reversal
       {
         title: 'Other charge',
         amount: '100',
-        reference: 'other-1',
+        reference: '',
         reason: 'Test',
         evidence: 'Test',
       },
@@ -132,6 +132,42 @@ test('bill rent once, deposit, partial/multi-bill allocations, refunds, reversal
   };
   let bill = await call<Bill>('/bills', create, 'POST', 201);
   expect(bill.amountCents).toBe('175000');
+  const byContractTitle = await call<Bill[]>(
+    '/bills?q=' + encodeURIComponent('Rent-only'),
+    undefined,
+    'GET',
+  );
+  expect(byContractTitle.map((row) => row.id)).toContain(bill.id);
+  await testApp.database.repository('hylBills').updateOne({
+    filter: { id: bill.id },
+    values: {
+      payload: {
+        ...bill.payload,
+        contract: { ...bill.payload.contract, title: '历史账单合同名称' },
+      },
+    },
+  });
+  const bySnapshotTitle = await call<Bill[]>(
+    '/bills?q=' + encodeURIComponent('历史账单合同名称'),
+    undefined,
+    'GET',
+  );
+  expect(bySnapshotTitle.map((row) => row.id)).toContain(bill.id);
+  const generated = bill.payload.input.others[0].reference;
+  expect(generated).toBe(`FY-${create.requestId}-1`);
+  const reloaded = await call<Bill>(`/bills/${bill.id}`, undefined, 'GET');
+  expect(reloaded.payload.input.others[0].reference).toBe(generated);
+  await call(
+    '/bills',
+    {
+      ...create,
+      requestId: randomUUID(),
+      fees: [],
+      others: [{ ...input.others[0], reference: generated }],
+    },
+    'POST',
+    400,
+  );
   expect((await call<Bill>('/bills', create, 'POST', 201)).id).toBe(bill.id);
   await call('/bills', { ...create, requestId: randomUUID() }, 'POST', 400);
   bill = await call<Bill>(`/bills/${bill.id}/issue`, {
@@ -156,13 +192,18 @@ test('bill rent once, deposit, partial/multi-bill allocations, refunds, reversal
       expectedLeaseVersion: 3,
       amount: '1000',
       date: '2026-08-31',
-      method: 'bank',
-      reference: 'cash-1',
+      method: 'cash',
+      reference: '',
       evidence: 'Test',
     },
     'POST',
     201,
   );
+  expect(receipt.reference).toMatch(/^SK-[0-9a-f-]{36}$/);
+  expect(
+    (await call<Receipt>(`/receipts/${receipt.id}`, undefined, 'GET'))
+      .reference,
+  ).toBe(receipt.reference);
   receipt = await call<Receipt>(`/receipts/${receipt.id}/allocate`, {
     requestId: randomUUID(),
     expectedVersion: receipt.version,
@@ -286,4 +327,11 @@ test('bill rent once, deposit, partial/multi-bill allocations, refunds, reversal
     'POST',
     400,
   );
+  const audit = await (await admin.fetch('/operationLogs?pageSize=100')).json();
+  for (const action of ['applyDeposit', 'allocate', 'refund', 'closeLease'])
+    expect(audit.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action, result: 'success' }),
+      ]),
+    );
 });

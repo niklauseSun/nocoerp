@@ -1,3 +1,4 @@
+import { sourceRecordLabel } from '../source-record-label.js';
 import { BackButton } from '#components/back-button';
 import { Spinner } from '#components/ui/spinner';
 import { SourcePicker } from './source-picker.js';
@@ -302,7 +303,7 @@ function LeaseActionForm({
         )
         .map((e) => ({
           value: e.id,
-          label: `${t(`lease.kinds.${e.kind}`)} · ${e.reference ?? e.createdAt.slice(0, 10)} · ${amountText(Number(e.amountCents) / 100, i18n.language)}`,
+          label: `${t(`lease.kinds.${e.kind}`)} · ${e.reference || e.id} · ${amountText(Number(e.amountCents) / 100, i18n.language)}`,
         }));
     if (['confirmCharge', 'cancelCharge'].includes(action))
       return (data?.charges ?? [])
@@ -310,7 +311,7 @@ function LeaseActionForm({
         .map((c) => ({
           value: c.id,
           kind: 'charge',
-          label: `${scalar(c.payload.reason)} · ${amountText(Number(c.amountCents) / 100, i18n.language)}`,
+          label: `${c.reference || c.id} · ${scalar(c.payload.reason)} · ${amountText(Number(c.amountCents) / 100, i18n.language)}`,
         }));
     return [
       ...(action === 'deduct' ? (data?.bills ?? []) : [])
@@ -332,7 +333,7 @@ function LeaseActionForm({
         .map((c) => ({
           value: c.id,
           kind: 'charge',
-          label: `${scalar(c.payload.reason)} · ${amountText(c.remaining, i18n.language)}`,
+          label: `${c.reference || c.id} · ${scalar(c.payload.reason)} · ${amountText(c.remaining, i18n.language)}`,
         })),
     ];
   };
@@ -628,7 +629,21 @@ function LeaseActionForm({
                     <SourcePicker
                       value={scalar(values[key])}
                       onChange={(v) => change(key, v)}
-                      options={sourceOptions()}
+                      options={sourceOptions().map((option) => ({
+                        ...option,
+                        label: [
+                          sourceRecordLabel({
+                            id: current.id,
+                            number: '',
+                            merchantName: current.name,
+                            contractTitle: scalar(current.payload.title),
+                            contractNumber: current.number,
+                          }),
+                          option.label,
+                        ]
+                          .filter(Boolean)
+                          .join(' · '),
+                      }))}
                       disabled={pending}
                     />
                   )

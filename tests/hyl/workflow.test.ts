@@ -289,6 +289,18 @@ test('runs merchant-to-payment workflow and rejects unsafe operations', async ({
     ((await monthList.json()) as { meta: { total: number } }).meta.total,
   ).toBe(1);
   let settlement = await write(admin, '/settlements', settlementInput);
+  const byContract = await admin.fetch(
+    '/settlements?q=' + encodeURIComponent(contract.number),
+  );
+  expect(
+    ((await byContract.json()) as { data: { id: string }[] }).data.map(
+      (row) => row.id,
+    ),
+  ).toContain(settlement.id);
+  const noMatch = await admin.fetch('/settlements?q=NO-SUCH-CONTRACT-SEARCH');
+  expect(
+    ((await noMatch.json()) as { meta: { total: number } }).meta.total,
+  ).toBe(0);
   expect(await dashboard(admin)).toMatchObject({
     unsettled: '0.00',
     unpaid: '0.00',

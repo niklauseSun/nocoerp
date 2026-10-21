@@ -40,14 +40,28 @@ export const checkoutSchema = z
             key: id,
             method: z.enum(['bank', 'cash', 'other']),
             amount,
-            reference: z.string().trim().min(1).max(100),
+            reference: z.string().trim().max(100).default(''),
             evidence: text,
             splits: z
               .array(z.object({ contractId: id, amount }).strict())
               .min(1)
               .max(50),
           })
-          .strict(),
+          .strict()
+          .superRefine((v, ctx) => {
+            if (v.method === 'bank' && !v.reference)
+              ctx.addIssue({
+                code: 'too_small',
+                origin: 'string',
+                minimum: 1,
+                inclusive: true,
+                path: ['reference'],
+              });
+          })
+          .transform((v) => ({
+            ...v,
+            reference: v.reference || `SK-${v.key}`,
+          })),
       )
       .max(10),
   })

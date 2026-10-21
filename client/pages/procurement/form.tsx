@@ -491,6 +491,7 @@ export default function Form({ kind }: { kind: Kind }) {
                 <Group title={t('procurement.suppliers')}>
                   {isNew ? (
                     <Picker
+                      disabled={w.busy || uncertain || !ready || unauthorized}
                       name='projectId'
                       path='procurementAssets'
                       query={{ projectsOnly: 'true' }}
@@ -515,6 +516,9 @@ export default function Form({ kind }: { kind: Kind }) {
                     {isNew ? (
                       <>
                         <Picker
+                          disabled={
+                            w.busy || uncertain || !ready || unauthorized
+                          }
                           name='assetId'
                           path='procurementAssets'
                           value={values.assetId}
@@ -527,6 +531,9 @@ export default function Form({ kind }: { kind: Kind }) {
                         />
                         {values.assetId ? (
                           <Picker
+                            disabled={
+                              w.busy || uncertain || !ready || unauthorized
+                            }
                             name='repairId'
                             path='repairOrders'
                             query={{ assetId: values.assetId }}
@@ -694,6 +701,7 @@ export default function Form({ kind }: { kind: Kind }) {
               ) : null}
               {mode === 'convert' ? (
                 <Picker
+                  disabled={w.busy || uncertain || !ready || unauthorized}
                   name='supplierId'
                   path='purchaseSuppliers'
                   query={{ projectId: r?.projectId ?? '', status: 'active' }}

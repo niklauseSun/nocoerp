@@ -1,5 +1,14 @@
 export default {
   profile: {
+    accountAssociationHelp:
+      'Links the login account only; roles, business permissions and project access stay as configured.',
+    linkedAccount: 'Linked login account',
+    searchAsset: 'Search unit or stall name or number',
+    searchUser: 'Search name, username or email',
+    unlinkAccount: 'Clear account selection',
+    clearAsset: 'Clear unit selection',
+    pickerDenied:
+      'You do not have lookup access. Contact an authorized administrator.',
     retryCreationHelp:
       'The save result is unconfirmed. Click Create again to recover the original submission without creating a duplicate.',
     businessLicense: 'Business license (optional)',
@@ -109,7 +118,9 @@ export default {
     accountName: 'Account holder',
     bank: 'Bank',
     account: 'Bank account',
-    userId: 'Linked user ID',
+    userId: 'Linked login account',
+    bindingStart: 'Unit binding start',
+    bindingEnd: 'Unit binding end (optional)',
     active: 'Active',
     notes: 'Notes',
     number: 'Number',
@@ -210,6 +221,13 @@ export default {
     cancelled: 'Cancelled',
   },
   copy: {
+    sourceRecord: 'Source document',
+    sourceSearch: 'Search merchant, contract or document number',
+    sourceLimit: 'Up to {{count}} sources. Remove a selection or clear with ×.',
+    clearRecord: 'Clear {{name}} selection',
+    chooseRecord: 'Choose {{name}}',
+    record: 'record',
+    clearMerchant: 'Clear merchant selection',
     searchMerchant: 'Search merchants by name or number',
     chooseMerchant: 'Choose merchant',
     loadingMerchants: 'Loading merchants',
@@ -276,6 +294,11 @@ export default {
     noContract: 'Create a contract covering this period first.',
   },
   errors: {
+    ASSET_BINDING_OVERLAP:
+      'This unit is occupied during the selected dates. Choose another unit or period.',
+    ASSET_LEAF_REQUIRED: 'Select one unit or stall.',
+    ASSET_UNAVAILABLE: 'This unit or an ancestor is unavailable.',
+    ASSET_AREA: 'The binding area exceeds the lettable area.',
     DEPOSIT_OVERDRAW:
       'Insufficient available deposit or the transfer exceeds the new target.',
     LEASE_RETRY_CONFLICT:

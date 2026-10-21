@@ -1,23 +1,20 @@
+import { contractLabel } from '../hyl/contract-label.js';
+import type { PhotoGroups } from './photos.js';
+import type { FileRecord } from '#extensions/nocobase-file-component-ui/index';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { str } from './helpers.js';
-import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { Field, FieldLabel, FieldError } from '#components/ui/field';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
-import { Button } from '#components/ui/button';
 import { StatusBadge } from '#components/status-badge';
 import { useBusinessQuery } from '../hyl/hooks.js';
 import type {
   RepairOrder,
   RepairEvent,
 } from '../../../server/repairs/model.js';
-import {
-  Choice,
-  Search,
-  Paged,
-  BillingError,
-  LoadingRows,
-} from '../cashier/common.js';
+import { Paged, BillingError } from '../cashier/common.js';
 export {
   Choice,
   Search,
@@ -42,7 +39,8 @@ export type Order = RepairOrder & {
   blockedActions: string[];
   blockedReasons?: Record<string, string>;
   overdue: boolean;
-  events?: Page<RepairEvent>;
+  photos?: PhotoGroups;
+  events?: Page<RepairEvent & { photos?: FileRecord[] }>;
 };
 export function RepairState({ value }: { value: string }) {
   const { t } = useTranslation();
@@ -101,100 +99,87 @@ export function RepairPicker({
   name,
   value,
   onChange,
+  disabled = false,
   required = false,
   error,
 }: {
   kind: 'assets' | 'merchants' | 'contracts' | 'repairAssignees';
   name: string;
   value: string;
+  disabled?: boolean;
   onChange: (v: string) => void;
   required?: boolean;
   error?: string;
 }) {
   const { t } = useTranslation(),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
-    [chosen, setChosen] = useState<{ value: string; label: string }>();
+    { q, setQ, page, setPage } = useRecordSearchState(kind);
   const rows = useBusinessQuery<Page<Record<string, unknown>>>(kind, {
-      q,
-      page,
-      pageSize: 20,
-    }),
-    selected = useBusinessQuery<{ data: Record<string, unknown> }>(
-      kind + '/' + value,
-      undefined,
-      !!value && kind !== 'repairAssignees',
-    );
+    q,
+    page,
+    pageSize: 20,
+  });
+  const selected = useBusinessQuery<{ data: Record<string, unknown> }>(
+    kind + '/' + value,
+    undefined,
+    !!value && kind !== 'repairAssignees',
+  );
   const label = (r: Record<string, unknown>) =>
-    [
-      r.number,
-      r.name,
-      (r.payload as Record<string, unknown> | undefined)?.name,
-      (r.payload as Record<string, unknown> | undefined)?.title,
-    ]
-      .map(str)
-      .filter(Boolean)
-      .join(' · ');
-  const options =
-    (rows.isPlaceholderData
-      ? []
-      : rows.data?.data.map((r) => ({ value: str(r.id), label: label(r) }))) ??
-    [];
-  if (value && !options.some((o) => o.value === value)) {
-    const selectedValue = selected.data?.data;
-    if (chosen?.value === value) options.push(chosen);
-    else if (selectedValue)
-      options.push({ value, label: label(selectedValue) });
-  }
-  const selectedCaption =
-    options.find((o) => o.value === value)?.label ||
-    (chosen?.value === value ? chosen.label : '') ||
-    (selected.data?.data ? label(selected.data.data) : '');
+    kind === 'contracts'
+      ? contractLabel(r)
+      : [
+          r.number,
+          r.name,
+          (r.payload as Record<string, unknown> | undefined)?.name,
+          (r.payload as Record<string, unknown> | undefined)?.title,
+        ]
+          .map(str)
+          .filter(Boolean)
+          .join(' · ');
   return (
     <Field>
       <FieldLabel htmlFor={'cashier-' + name}>
         {t('repair.fields.' + name)}
         {required ? ' *' : ''}
       </FieldLabel>
-      <Search
-        value={q}
-        onChange={(v) => {
+      <RecordSearch
+        disabled={disabled}
+        id={'cashier-' + name}
+        label={t('repair.fields.' + name) + (required ? ' *' : '')}
+        value={value}
+        scopeKey={kind}
+        invalid={!!error}
+        loading={rows.isFetching}
+        caption={selected.data?.data ? label(selected.data.data) : undefined}
+        options={(rows.isPlaceholderData ? [] : rows.data?.data || []).map(
+          (r) => ({ value: str(r.id), label: label(r) }),
+        )}
+        onChange={onChange}
+        onSearch={(v) => {
           setQ(v);
           setPage(1);
         }}
         placeholder={t('repair.searchPicker')}
+        status={
+          rows.error || selected.error ? (
+            <BillingError
+              error={rows.error || selected.error}
+              retry={() => {
+                void rows.refetch();
+                if (value) void selected.refetch();
+              }}
+            />
+          ) : undefined
+        }
+        footer={
+          rows.data && rows.data.meta.total > 20 ? (
+            <Paged
+              meta={rows.data.meta}
+              onChange={setPage}
+              busy={rows.isFetching}
+            />
+          ) : undefined
+        }
       />
-      {value && selectedCaption ? (
-        <p className='text-sm text-muted-foreground'>{selectedCaption}</p>
-      ) : null}
-      {rows.error ? (
-        <BillingError error={rows.error} retry={() => void rows.refetch()} />
-      ) : !rows.data || rows.isPlaceholderData ? (
-        <LoadingRows />
-      ) : (
-        <>
-          <Choice
-            id={'cashier-' + name}
-            disabled={rows.isFetching}
-            value={value}
-            onChange={(v) => {
-              setChosen(options.find((o) => o.value === v));
-              onChange(v);
-            }}
-            options={options}
-          />
-          <Paged
-            meta={rows.data.meta}
-            onChange={setPage}
-            busy={rows.isFetching}
-          />
-        </>
-      )}
-      {!required && value ? (
-        <Button type='button' variant='outline' onClick={() => onChange('')}>
-          {t('repair.clearSelection')}
-        </Button>
-      ) : null}
       <FieldError>{error}</FieldError>
     </Field>
   );

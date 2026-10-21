@@ -275,22 +275,24 @@ export default function Assets() {
                 ]}
               />
             </div>
-            <div className='flex flex-wrap gap-2'>
-              <Choice
-                ariaLabel={t('assets.sort')}
-                value={query.orderBy}
-                onChange={(v) => update('orderBy', v)}
-                options={[
-                  'number:asc',
-                  'name:asc',
-                  'area:asc',
-                  'area:desc',
-                  'updatedAt:desc',
-                ].map((value) => ({
-                  value,
-                  label: `${t(`assets.fields.${value.split(':')[0]}`)} ${value.endsWith('asc') ? '↑' : '↓'}`,
-                }))}
-              />
+            <div className='flex flex-wrap items-center gap-2'>
+              <div className='w-full min-w-0 sm:w-48 sm:shrink-0'>
+                <Choice
+                  ariaLabel={t('assets.sort')}
+                  value={query.orderBy}
+                  onChange={(v) => update('orderBy', v)}
+                  options={[
+                    'number:asc',
+                    'name:asc',
+                    'area:asc',
+                    'area:desc',
+                    'updatedAt:desc',
+                  ].map((value) => ({
+                    value,
+                    label: `${t(`assets.fields.${value.split(':')[0]}`)} ${value.endsWith('asc') ? '↑' : '↓'}`,
+                  }))}
+                />
+              </div>
               <Button
                 variant='ghost'
                 onClick={() => {

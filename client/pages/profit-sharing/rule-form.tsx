@@ -1,3 +1,6 @@
+import { contractLabel } from '../hyl/contract-label.js';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { useCoverFocus } from './focus.js';
 import { Spinner } from '#components/ui/spinner';
 import { useWork } from '../cashier/work.js';
@@ -31,7 +34,6 @@ import {
   BillingError,
   Money,
   Paged,
-  Search,
 } from './common.js';
 import type { Rule, RuleValues } from './types.js';
 export default function SplitRuleForm() {
@@ -495,54 +497,59 @@ function RenewalPicker({
   onChange: (id: string, start: string) => void;
 }) {
   const { t } = useTranslation();
-  const [q, setQ] = useState(''),
-    [page, setPage] = useState(1);
+  const { q, setQ, page, setPage } = useRecordSearchState(
+    'renewal:' + sourceContractId,
+  );
   const result = useBusinessQuery<{
-    data: { id: string; number: string; payload: { start: string } }[];
+    data: {
+      id: string;
+      number: string;
+      name?: string;
+      payload: { start: string; title?: string };
+    }[];
     meta: { page: number; pageSize: number; total: number };
   }>(`contracts/${sourceContractId}/splitRenewals`, { q, page });
   return (
-    <>
-      <Search
-        value={q}
-        onChange={(v) => {
-          setQ(v);
-          setPage(1);
-        }}
-        placeholder={t('split.search')}
-      />
-      {result.error ? (
-        <BillingError
-          error={result.error}
-          retry={() => void result.refetch()}
-        />
-      ) : !result.data ? (
-        <LoadingRows />
-      ) : !result.data.meta.total ? (
-        <p>{t('split.noRenewal')}</p>
-      ) : (
-        <>
-          <Choice
-            id='cashier-contractId'
-            value={value}
-            disabled={busy}
-            ariaLabel={t('split.fields.contractId')}
-            options={result.data.data.map((r) => ({
-              value: r.id,
-              label: r.number,
-            }))}
-            onChange={(id) => {
-              const r = result.data.data.find((r) => r.id === id);
-              if (r) onChange(id, r.payload.start);
-            }}
+    <RecordSearch
+      id='cashier-contractId'
+      label={t('split.fields.contractId')}
+      value={value}
+      disabled={busy}
+      scopeKey={'renewal:' + sourceContractId}
+      loading={result.isFetching}
+      options={(result.isPlaceholderData ? [] : result.data?.data || []).map(
+        (r) => ({ value: r.id, label: contractLabel(r) }),
+      )}
+      onSearch={(v) => {
+        setQ(v);
+        setPage(1);
+      }}
+      onChange={(id) => {
+        if (!id) {
+          onChange('', '');
+          return;
+        }
+        const row = result.data?.data.find((r) => r.id === id);
+        if (row) onChange(id, row.payload.start);
+      }}
+      placeholder={t('split.search')}
+      status={
+        result.error ? (
+          <BillingError
+            error={result.error}
+            retry={() => void result.refetch()}
           />
+        ) : undefined
+      }
+      footer={
+        result.data && result.data.meta.total > 20 ? (
           <Paged
             meta={result.data.meta}
             busy={result.isFetching}
             onChange={setPage}
           />
-        </>
-      )}
-    </>
+        ) : undefined
+      }
+    />
   );
 }

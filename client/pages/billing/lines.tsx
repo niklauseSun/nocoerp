@@ -24,7 +24,9 @@ export function Calculation({ lines }: { lines: Line[] }) {
                   key={key}
                   className={key === 'amount' ? 'text-right' : ''}
                 >
-                  {t(`billing.fields.${key}`)}
+                  {t(
+                    `billing.fields.${key === 'evidence' ? 'chargeBasis' : key}`,
+                  )}
                 </TableHead>
               ),
             )}
@@ -38,6 +40,12 @@ export function Calculation({ lines }: { lines: Line[] }) {
                 {line.meterCode ? (
                   <p className='text-sm text-muted-foreground'>
                     {line.meterCode}
+                  </p>
+                ) : null}
+                {line.feeType === 'other' && line.payload.reference ? (
+                  <p className='text-sm text-muted-foreground'>
+                    {t('billing.fields.sourceNumber')} ·{' '}
+                    {scalar(line.payload.reference)}
                   </p>
                 ) : null}
                 {line.payload.title ? (

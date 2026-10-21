@@ -35,6 +35,7 @@ export default {
   empty: '暂无记录',
   emptyHelp: '付款核销后生成开票任务，也可补建历史来源。',
   noResults: '没有匹配结果',
+  searchSourceBill: '搜索账单编号、商户或合同',
   searchSources: '搜索任务、商户、合同或账单',
   searchInvoices: '搜索票号、购销方、商户、合同或账单',
   searchConfigs: '搜索合同、商户或购销方',

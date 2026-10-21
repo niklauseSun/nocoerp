@@ -1,3 +1,4 @@
+import NewSplitOrder from '../../client/pages/profit-sharing/new-order.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TestI18nProvider,
@@ -15,6 +16,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import zh from '../../client/locales/zh-CN.js';
+import SplitRuleForm from '../../client/pages/profit-sharing/rule-form.js';
 import SplitAction from '../../client/pages/profit-sharing/action.js';
 import SplitSource from '../../client/pages/profit-sharing/source.js';
 import SplitList from '../../client/pages/profit-sharing/list.js';
@@ -74,6 +76,7 @@ function mount(
       >
         <MemoryRouter initialEntries={[path]}>
           <Routes>
+            <Route path='/profit-sharing/orders/new' element={element} />
             <Route
               path='/profit-sharing/orders/:splitId/execute'
               element={element}
@@ -85,6 +88,10 @@ function mount(
             <Route
               path='/profit-sharing/orders/:splitId'
               element={<h1>源详情</h1>}
+            />
+            <Route
+              path='/profit-sharing/rules/:ruleId/copy'
+              element={element}
             />
             <Route path='*' element={element} />
           </Routes>
@@ -313,3 +320,119 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('clears the renewal contract and its derived effective date from the same input', async () => {
+  api.request.mockImplementation(async ({ path }) =>
+    path === 'splitRules/source-rule'
+      ? {
+          data: {
+            id: 'source-rule',
+            contractId: 'original',
+            merchantId: 'm',
+            version: 1,
+            effectiveFrom: '2026-10-01',
+            enabled: true,
+            payload: {
+              enabled: true,
+              effectiveFrom: '2026-10-01',
+              billFeeTypes: ['rent'],
+              recipients: [
+                {
+                  key: 'p',
+                  kind: 'project',
+                  name: '项目',
+                  accountLabel: '台账',
+                  rate: '100',
+                },
+              ],
+              notes: '',
+            },
+          },
+        }
+      : {
+          data: [
+            {
+              id: 'renewal',
+              number: 'HT-NEW',
+              name: '续租商户',
+              payload: { start: '2026-11-01', title: '续租合同名称' },
+            },
+          ],
+          meta: { page: 1, pageSize: 20, total: 1 },
+        },
+  );
+  mount(<SplitRuleForm />, '/profit-sharing/rules/source-rule/copy');
+  const user = userEvent.setup(),
+    input = await screen.findByRole('combobox', { name: '合同', exact: true });
+  await user.click(input);
+  await user.click(
+    await screen.findByRole('option', { name: '续租合同名称 · HT-NEW' }),
+  );
+  expect(screen.getByLabelText('生效日期 *')).toHaveTextContent(
+    '2026年11月1日',
+  );
+  await user.click(screen.getByRole('button', { name: '清空合同选择' }));
+  expect(input).toHaveValue('');
+  expect(screen.getByLabelText('生效日期 *')).not.toHaveTextContent('2026');
+});
+
+it('searches a split source with merchant and contract labels and invalidates its preview on clear or kind change', async () => {
+  const doc = {
+    id: 'source',
+    number: 'ZD-1',
+    merchantName: '商户甲',
+    contractNumber: 'HT-1',
+    contractTitle: '租约甲',
+  };
+  api.request.mockImplementation(async (r) =>
+    r.path === 'splitOrders/preview'
+      ? {
+          data: {
+            sourceNumber: 'ZD-1',
+            sourceHash: 'hash',
+            sourceFundsCents: '100',
+            shareBaseCents: '100',
+            remainingCents: '100',
+            recoveryCents: '0',
+            lines: [],
+          },
+        }
+      : { data: [doc], meta: { page: 1, pageSize: 10, total: 1 } },
+  );
+  mount(<NewSplitOrder />, '/profit-sharing/orders/new');
+  const user = userEvent.setup();
+  const source = screen.getByRole('combobox', { name: '来源单据 *' });
+  await user.type(source, '商户甲');
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'bills',
+        query: expect.objectContaining({ q: '商户甲' }),
+      }),
+    ),
+  );
+  await user.click(
+    await screen.findByRole('option', {
+      name: 'ZD-1 · 商户甲 · 租约甲 · HT-1',
+    }),
+  );
+  await user.click(screen.getByRole('button', { name: '预览', exact: true }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: '创建', exact: true }),
+    ).toBeEnabled(),
+  );
+  await user.click(screen.getByRole('button', { name: '清空来源单据选择' }));
+  expect(source).toHaveValue('');
+  expect(
+    screen.getByRole('button', { name: '创建', exact: true }),
+  ).toBeDisabled();
+  await user.click(source);
+  await user.click(await screen.findByRole('option', { name: /ZD-1/ }));
+  await user.click(screen.getByRole('combobox', { name: '来源类型' }));
+  await user.click(await screen.findByRole('option', { name: '经营结算' }));
+  expect(screen.getByRole('combobox', { name: '来源单据 *' })).toHaveValue('');
+  expect(
+    screen.getByRole('button', { name: '创建', exact: true }),
+  ).toBeDisabled();
+});

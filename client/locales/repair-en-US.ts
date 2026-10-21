@@ -142,7 +142,25 @@ export default {
     close: 'Close repairs',
     cancel: 'Cancel repairs',
   },
+  photos: {
+    title: 'Site photos',
+    report: 'Report photos',
+    processing: 'Work photos',
+    acceptance: 'Acceptance photos',
+    help: 'Optional. Up to 9 JPEG / PNG images per submission, 10 MB each. Removing a selection keeps saved history intact.',
+    chooseAsset: 'Select the repair asset before uploading photos.',
+    choose: 'Choose photos',
+    remove: 'Remove photo',
+    retry: 'Retry upload',
+    preview: 'Preview photo',
+    empty: 'No photos',
+    pending:
+      'Wait for uploads to finish, or retry/cancel failed items before submitting.',
+  },
   errors: {
+    REPAIR_PHOTO_TYPE: 'Upload a valid JPEG or PNG image.',
+    REPAIR_PHOTO_INVALID:
+      'The photos do not belong to this order, asset or stage. Select them again.',
     REPAIR_CHANGED: 'The repair changed. Reload before continuing.',
     REPAIR_REQUEST_CONFLICT:
       'The operation ID was used for different input. Reload and retry.',

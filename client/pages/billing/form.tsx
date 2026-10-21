@@ -1,3 +1,4 @@
+import { LocalRecordSearch } from '#components/record-search';
 import { ManagedMeters } from '../energy/managed-meters.js';
 import { fieldMessages } from './form-errors.js';
 import { useEffect, useState, useCallback } from 'react';
@@ -410,13 +411,7 @@ function FormBody({
           required(`readings.${i}.${key}`, r[key]);
       });
       input.others.forEach((r, i) => {
-        for (const key of [
-          'title',
-          'amount',
-          'reference',
-          'reason',
-          'evidence',
-        ] as const)
+        for (const key of ['title', 'amount', 'reason', 'evidence'] as const)
           required(`others.${i}.${key}`, r[key]);
         if (Number(r.amount) <= 0)
           e[`others.${i}.amount`] = t('billing.positive');
@@ -768,9 +763,10 @@ function FormBody({
                   <div className='grid gap-4 sm:grid-cols-2'>
                     <Field>
                       <FieldLabel>{t('billing.fields.asset')} *</FieldLabel>
-                      <Choice
+                      <LocalRecordSearch
                         id={`billing-meters.${i}.assetId`}
-                        ariaLabel={t('billing.fields.asset')}
+                        label={t('billing.fields.asset')}
+                        scopeKey={'billing-assets:' + cfg.contract.id}
                         value={m.assetId}
                         onChange={(v) => meterEdit(i, { assetId: v })}
                         disabled={busy}
@@ -1131,8 +1127,13 @@ function FormBody({
                               n === i ? { ...o, [key]: v } : o,
                             ),
                           ),
-                        true,
+                        key !== 'reference',
                         key === 'amount',
+                        key === 'reference'
+                          ? t('billing.fields.sourceReference')
+                          : key === 'evidence'
+                            ? t('billing.fields.chargeBasis')
+                            : undefined,
                       ),
                     )}
                   </div>

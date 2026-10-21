@@ -1,3 +1,4 @@
+import { departmentScope, scopedMembers, employees } from './roster.js';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -62,8 +63,8 @@ export function DepartmentTree({
       (x) => x.parentId === d.id && visible.has(x.id) && !rendered.has(x.id),
     );
     const open = !!term || !collapsed.has(d.id);
-    const count = members.filter(
-      (m) => m.departmentId === d.id && m.active,
+    const count = employees(
+      scopedMembers(members, departmentScope(departments, d.id)),
     ).length;
     const params = new URLSearchParams(q);
     params.set('department', d.id);

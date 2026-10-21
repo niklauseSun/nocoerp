@@ -63,7 +63,7 @@ export default defineApiRoutes<Application>((app) => {
     );
   const query = assetPaging.extend({
     q: z.string().max(100).default(''),
-    type: z.enum(['', ...assetTypes]).default(''),
+    type: z.enum(['', 'leaf', ...assetTypes]).default(''),
     state: z.enum(['', 'normal', 'maintenance', 'inactive']).default(''),
     parentId: z.union([z.string().uuid(), z.literal('')]).optional(),
     occupancy: z.enum(['', 'occupied', 'vacant']).default(''),

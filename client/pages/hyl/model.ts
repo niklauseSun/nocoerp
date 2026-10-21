@@ -49,7 +49,10 @@ export const specs: Record<Kind, FieldSpec[]> = {
   merchants: [
     f('code'),
     f('name'),
-    f('unit'),
+    f('unit', undefined, undefined, true),
+    f('assetId', undefined, undefined, true),
+    f('bindingStart', 'date'),
+    f('bindingEnd', 'date', undefined, true),
     f(
       'category',
       'select',

@@ -1,3 +1,10 @@
+import { RecordSearch } from '#components/record-search';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import {
+  sourceRecordLabel,
+  type SourceRecord,
+} from '../hyl/source-record-label.js';
+import { Field, FieldLabel } from '#components/ui/field';
 import { useCoverFocus } from './focus.js';
 import { Spinner } from '#components/ui/spinner';
 import { useWork } from '../cashier/work.js';
@@ -11,16 +18,13 @@ import { PageHeader } from '#components/page-header';
 import { RouteChildPage } from '#components/route-child-page';
 import { BackButton } from '#components/back-button';
 import { Button } from '#components/ui/button';
-import { Checkbox } from '#components/ui/checkbox';
 import { useBusinessPermission, useBusinessQuery } from '../hyl/hooks.js';
 import {
   Group,
-  Search,
   Choice,
   FormField,
   Confirm,
   BillingError,
-  LoadingRows,
   Paged,
   SplitAmounts,
 } from './common.js';
@@ -38,8 +42,7 @@ export default function Backfill() {
     w = useWork(),
     can = useBusinessPermission('contracts', 'splitConfigure');
   const [kind, setKind] = useState('bill'),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
+    { q, setQ, page, setPage } = useRecordSearchState('split-source:' + kind),
     [sourceId, setSourceId] = useState(''),
     [reason, setReason] = useState(''),
     [preview, setPreview] = useState<Snapshot>(),
@@ -47,7 +50,7 @@ export default function Backfill() {
     [confirm, setConfirm] = useState(false),
     [discard, setDiscard] = useState(false);
   const result = useBusinessQuery<{
-      data: { id: string; number: string }[];
+      data: SourceRecord[];
       meta: { page: number; pageSize: number; total: number };
     }>(
       kind === 'bill' ? 'bills' : 'settlements',
@@ -160,52 +163,56 @@ export default function Backfill() {
                   label: t(`split.roles.${value}`),
                 }))}
               />
-              <Search
-                value={q}
-                onChange={(v) => {
-                  setQ(v);
-                  setPage(1);
-                }}
-                placeholder={t('split.search')}
-              />
-              {result.error ? (
-                <BillingError
-                  error={result.error}
-                  retry={() => void result.refetch()}
-                />
-              ) : !result.data ? (
-                <LoadingRows />
-              ) : (
-                result.data.data.map((r) => (
-                  <label key={r.id} className='flex gap-2'>
-                    <Checkbox
-                      checked={sourceId === r.id}
-                      disabled={w.busy}
-                      onCheckedChange={(v) => {
-                        setSourceId(v ? r.id : '');
-                        setPreview(undefined);
-                      }}
-                    />
-                    {r.number}
-                  </label>
-                ))
-              )}
-              {result.data ? (
-                <Paged
-                  meta={result.data.meta}
-                  busy={w.busy}
-                  onChange={setPage}
-                />
-              ) : null}
-              {w.errors.sourceId ? (
-                <p
+              <Field>
+                <FieldLabel htmlFor='cashier-sourceId'>
+                  {t('split.fields.sourceId')} *
+                </FieldLabel>
+                <RecordSearch
                   id='cashier-sourceId'
-                  tabIndex={-1}
-                  className='text-destructive'
-                >
-                  {w.errors.sourceId}
-                </p>
-              ) : null}
+                  label={t('split.fields.sourceId') + ' *'}
+                  value={sourceId}
+                  scopeKey={'split-source:' + kind}
+                  disabled={w.busy}
+                  invalid={!!w.errors.sourceId}
+                  loading={result.isFetching}
+                  options={(result.isPlaceholderData
+                    ? []
+                    : (result.data?.data ?? [])
+                  ).map((row) => ({
+                    value: row.id,
+                    label: sourceRecordLabel(row),
+                  }))}
+                  onSearch={(query) => {
+                    setQ(query);
+                    setPage(1);
+                  }}
+                  onChange={(id) => {
+                    setSourceId(id);
+                    setPreview(undefined);
+                  }}
+                  placeholder={t('hyl.copy.sourceSearch')}
+                  status={
+                    result.error ? (
+                      <BillingError
+                        error={result.error}
+                        retry={() => void result.refetch()}
+                      />
+                    ) : undefined
+                  }
+                  footer={
+                    result.data && result.data.meta.total > 10 ? (
+                      <Paged
+                        meta={result.data.meta}
+                        busy={w.busy || result.isFetching}
+                        onChange={setPage}
+                      />
+                    ) : undefined
+                  }
+                />
+                {w.errors.sourceId ? (
+                  <p className='text-destructive'>{w.errors.sourceId}</p>
+                ) : null}
+              </Field>
             </Group>
             <FormField
               name='reason'

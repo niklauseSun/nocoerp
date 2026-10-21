@@ -201,9 +201,12 @@ function AccountDialog({
           (!value || (typeof value !== 'string' && !value.length))
         )
           next['role-' + scope.key] = t('organization.staffRoleRequired', {
-            name: scope.labelI18nKey
-              ? t(scope.labelI18nKey, { ns: scope.labelI18nNs })
-              : scope.label,
+            name:
+              scope.key === 'app'
+                ? t('organization.roles')
+                : scope.labelI18nKey
+                  ? t(scope.labelI18nKey, { ns: scope.labelI18nNs })
+                  : scope.label,
           });
       }
     if (mode === 'create')
@@ -424,9 +427,12 @@ function AccountDialog({
                   const options = scope.options.filter(
                     (option) => option.assignable !== false,
                   );
-                  const label = scope.labelI18nKey
-                    ? t(scope.labelI18nKey, { ns: scope.labelI18nNs })
-                    : scope.label;
+                  const label =
+                    scope.key === 'app'
+                      ? t('organization.roles')
+                      : scope.labelI18nKey
+                        ? t(scope.labelI18nKey, { ns: scope.labelI18nNs })
+                        : scope.label;
                   const value = roles[scope.key];
                   const values =
                     typeof value === 'string' ? [value] : (value ?? []);

@@ -27,6 +27,7 @@ vi.mock('@nocobase/app-plugin-authentication/client', () => ({
   useAuthentication: () => ({ session: { user: { id: 'flow-test' } } }),
 }));
 vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
   useCan: () => ({ can: true }),
 }));
 vi.mock('../../client/extensions/nocobase-file-component-ui/index.js', () => ({

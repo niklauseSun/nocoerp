@@ -205,7 +205,17 @@ export class SplitService {
           'read',
           'splitConfigure',
         ]);
-        if (!input.q || contract.number.includes(input.q))
+        const query = input.q?.toLocaleLowerCase() ?? '';
+        if (
+          !query ||
+          [
+            contract.number,
+            contract.name,
+            typeof contract.payload.title === 'string'
+              ? contract.payload.title
+              : '',
+          ].some((value) => value.toLocaleLowerCase().includes(query))
+        )
           allowed.push(contract);
       } catch (e) {
         if (!(e instanceof ApiError)) throw e;

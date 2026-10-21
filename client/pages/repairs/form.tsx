@@ -1,3 +1,8 @@
+import { RepairPhotoUpload } from './photos.js';
+import type {
+  FileRecord,
+  FileUploadStatus,
+} from '#extensions/nocobase-file-component-ui/index';
 import { str, today, useRepairCan, useRepairCache } from './helpers.js';
 import { useRef, useState, useEffect } from 'react';
 import {
@@ -162,6 +167,10 @@ function FormBody({
       dueOn: baseline?.dueOn || today(),
       cost: baseline ? String(Number(baseline.costCents) / 100) : '0',
     })),
+    [photos, setPhotos] = useState<readonly FileRecord[]>(() =>
+      mode === 'edit' ? (baseline?.photos?.report ?? []) : [],
+    ),
+    [uploadStatus, setUploadStatus] = useState<FileUploadStatus>('idle'),
     [dirty, setDirty] = useState(false),
     [discard, setDiscard] = useState(false),
     [confirm, setConfirm] = useState(false),
@@ -177,7 +186,7 @@ function FormBody({
     back = { pathname: path.slice(0, path.lastIndexOf('/')), search: l.search },
     guard = () => {
       if (mayCloseRef.current) return true;
-      if (w.busy) return false;
+      if (w.busy || uploadStatus !== 'idle') return false;
       if (!dirty) return true;
       return new Promise<boolean>((resolve) => {
         discardRef.current = resolve;
@@ -189,8 +198,10 @@ function FormBody({
   // The app's navigation guard is synchronous. Capture the intended local link/POP,
   // decline navigation, then resume that URL after our asynchronous discard dialog.
   useNavigationGuard(() => {
-    if (mayCloseRef.current || !dirty) return true;
-    if (w.busy) return false;
+    if (mayCloseRef.current) return true;
+    if (uploadStatus !== 'idle') return false;
+    if (!dirty) return true;
+    if (w.busy || uploadStatus !== 'idle') return false;
     discardRef.current = undefined;
     discardOpenRef.current = true;
     setDiscard(true);
@@ -271,7 +282,8 @@ function FormBody({
     return errors;
   };
   const change = (key: string, value: string) => {
-    if (unknown || w.busy) return;
+    if (unknown || w.busy || uploadStatus !== 'idle') return;
+    if (key === 'assetId' && value !== data.assetId) setPhotos([]);
     setDirty(true);
     setData((d) => ({ ...d, [key]: value }));
     if (w.attempted) w.setErrors(validate({ ...data, [key]: value }));
@@ -292,7 +304,7 @@ function FormBody({
         ? ['note', 'evidence', 'cost']
         : ['note'];
   const send = async () => {
-    if (w.busy) return;
+    if (w.busy || uploadStatus !== 'idle') return;
     const errors = validate(data);
     if (!w.focus(errors)) return;
     if (['accept', 'reject', 'close', 'cancel'].includes(mode) && !confirm) {
@@ -318,7 +330,10 @@ function FormBody({
               : []),
           ].map((k) => [k, data[k]]),
         );
-        let body: Record<string, unknown> = { values };
+        const selectedPhotos = photos.map((file) => file.id);
+        let body: Record<string, unknown> = {
+          values: { ...values, reportPhotoIds: selectedPhotos },
+        };
         if (!big)
           body = Object.fromEntries(
             (mode === 'assign' || mode === 'reassign'
@@ -328,6 +343,8 @@ function FormBody({
                 : ['note']
             ).map((k) => [k, data[k]]),
           );
+        if (['progress', 'complete', 'accept', 'reject'].includes(mode))
+          body.photoIds = selectedPhotos;
         if (mode !== 'new')
           Object.assign(body, {
             action: mode,
@@ -399,6 +416,7 @@ function FormBody({
     kind: 'assets' | 'contracts' | 'merchants' | 'repairAssignees',
   ) => (
     <RepairPicker
+      disabled={w.busy || unknown || w.conflict || uploadStatus !== 'idle'}
       kind={kind}
       name={name}
       value={data[name]}
@@ -459,7 +477,7 @@ function FormBody({
     >
       {errors}
       <fieldset
-        disabled={w.busy || unknown || w.conflict}
+        disabled={w.busy || unknown || w.conflict || uploadStatus !== 'idle'}
         className='flex min-w-0 flex-col gap-4'
       >
         {big ? (
@@ -523,6 +541,36 @@ function FormBody({
           </>
         )}
       </fieldset>
+      {['new', 'edit', 'progress', 'complete', 'accept', 'reject'].includes(
+        mode,
+      ) ? (
+        <RepairPhotoUpload
+          key={data.assetId}
+          assetId={data.assetId}
+          orderId={baseline?.id}
+          stage={
+            big
+              ? 'report'
+              : ['accept', 'reject'].includes(mode)
+                ? 'acceptance'
+                : 'processing'
+          }
+          value={photos}
+          onChange={(next) => {
+            setPhotos(next);
+            setDirty(true);
+            setConfirm(false);
+          }}
+          onStarted={() => setDirty(true)}
+          onStatusChange={setUploadStatus}
+          disabled={w.busy || unknown || w.conflict}
+        />
+      ) : null}
+      {uploadStatus !== 'idle' ? (
+        <p role='status' className='text-sm text-muted-foreground'>
+          {t('repair.photos.pending')}
+        </p>
+      ) : null}
     </form>
   );
   const footer = (
@@ -530,7 +578,7 @@ function FormBody({
       <Button
         type='button'
         variant='outline'
-        disabled={w.busy}
+        disabled={w.busy || uploadStatus !== 'idle'}
         onClick={() =>
           void Promise.resolve(guard()).then((ok) => {
             if (ok) void navigate(back);
@@ -539,7 +587,11 @@ function FormBody({
       >
         {t('repair.cancel')}
       </Button>
-      <Button type='submit' form='repair-form' disabled={w.busy || w.conflict}>
+      <Button
+        type='submit'
+        form='repair-form'
+        disabled={w.busy || w.conflict || uploadStatus !== 'idle'}
+      >
         {t(
           w.busy
             ? 'repair.saving'

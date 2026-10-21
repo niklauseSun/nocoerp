@@ -82,6 +82,11 @@ export default {
   invalidDate: '结束日期不能早于开始日期。',
   invalidLength: '内容超出允许长度。',
   invalidField: '请检查此项内容。',
+  searchAssignedContract: '搜索已绑定的合同编号',
+  noAssignedContracts:
+    '该水电表暂无已绑定合同。如需生成合同账单，请先到水电表中绑定合同。',
+  optionalAssignment: '合同绑定（选填）',
+  optionalAssignmentHelp: '不选择合同绑定即为公区抄表，不生成合同账单。',
   publicMeter: '公区抄表（不出合同账单）',
   submitRequired: '草稿可暂缺本次读数和凭证，提交审核前必须补齐。',
   handoverHelp:

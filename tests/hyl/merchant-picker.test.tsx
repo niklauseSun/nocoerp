@@ -15,6 +15,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { MerchantPicker } from '../../client/pages/hyl/merchant-picker.js';
+vi.mock('@nocobase/app-plugin-authentication/client', () => ({
+  useAuthentication: () => ({ session: { user: { id: 'picker-test' } } }),
+}));
+vi.mock('@nocobase/app-plugin-authorization/client', () => ({
+  useAuthorizationRevision: () => 0,
+}));
 import zh from '../../client/locales/zh-CN.js';
 const { api } = vi.hoisted(() => ({ api: { request: vi.fn() } }));
 vi.mock('@nocobase/app-client', async (original) => ({

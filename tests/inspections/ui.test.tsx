@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Picker } from '../../client/pages/inspections/common.js';
 import Scheduling from '../../client/pages/inspections/scheduling.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -291,3 +293,38 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('keeps multiple inspection assets while searching and clears them from the input X', async () => {
+  api.request.mockImplementation(async () => ({
+    data: [
+      { id: 'a', name: '资产甲', number: 'A' },
+      { id: 'b', name: '资产乙', number: 'B' },
+    ],
+    meta: { page: 1, pageSize: 20, total: 2 },
+  }));
+  function Example() {
+    const [ids, setIds] = useState<string[]>([]);
+    return (
+      <>
+        <Picker
+          kind='inspectionAssets'
+          value={ids}
+          onChange={setIds}
+          multiple
+        />
+        <output data-testid='selection'>{ids.join(',')}</output>
+      </>
+    );
+  }
+  mount(<Example />, '/picker');
+  const user = userEvent.setup(),
+    input = screen.getByRole('combobox', { name: '资产 *' });
+  await user.click(input);
+  await user.click(await screen.findByRole('option', { name: 'A · 资产甲' }));
+  await user.type(input, '资产乙');
+  expect(screen.getByTestId('selection')).toHaveTextContent('a');
+  await user.click(await screen.findByRole('option', { name: 'B · 资产乙' }));
+  expect(screen.getByTestId('selection')).toHaveTextContent('a,b');
+  await user.click(screen.getByRole('button', { name: '清空资产选择' }));
+  expect(screen.getByTestId('selection')).toHaveTextContent('');
+});

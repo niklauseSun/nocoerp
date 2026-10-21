@@ -1,21 +1,16 @@
-import { Button } from '#components/ui/button';
+import { contractLabel } from '../hyl/contract-label.js';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { Confirm as SharedConfirm } from '../cashier/common.js';
 import { Day } from '../billing/common.js';
 import { RecordedAt } from '../profit-sharing/common.js';
 import { scalar } from './helpers.js';
-import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useBusinessQuery } from '../hyl/hooks.js';
 import { Field, FieldLabel } from '#components/ui/field';
 import { Badge } from '#components/ui/badge';
 import { LongText } from '#components/long-text';
-import {
-  Choice,
-  Search,
-  Paged,
-  BillingError,
-  LoadingRows,
-} from '../cashier/common.js';
+import { Paged, BillingError } from '../cashier/common.js';
 export {
   Group,
   Choice,
@@ -128,79 +123,73 @@ export function Picker({
   required?: boolean;
 }) {
   const { t } = useTranslation(),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
-    selected = useBusinessQuery<{ data: Record<string, unknown> }>(
-      kind + '/' + value,
-      undefined,
-      !!value && kind !== 'energyAssignments',
-    ),
-    rows = useBusinessQuery<Page<Record<string, unknown>>>(
-      kind,
-      { q, page, pageSize: 20 },
-      true,
-    );
+    { q, setQ, page, setPage } = useRecordSearchState(kind);
+  const selected = useBusinessQuery<{ data: Record<string, unknown> }>(
+    kind + '/' + value,
+    undefined,
+    !!value && kind !== 'energyAssignments',
+  );
+  const rows = useBusinessQuery<Page<Record<string, unknown>>>(kind, {
+    q,
+    page,
+    pageSize: 20,
+  });
+  const label = (r: Record<string, unknown>) =>
+    kind === 'contracts'
+      ? contractLabel(r)
+      : [
+          r.number,
+          r.name,
+          (r.payload as Record<string, unknown> | undefined)?.contractNumber,
+        ]
+          .map(scalar)
+          .filter(Boolean)
+          .join(' · ');
   return (
     <Field>
       <FieldLabel htmlFor={'cashier-' + name}>
         {t('energy.fields.' + name)}
         {required ? ' *' : ''}
       </FieldLabel>
-      <Search
-        value={q}
-        onChange={(v) => {
+      <RecordSearch
+        id={'cashier-' + name}
+        label={t('energy.fields.' + name) + (required ? ' *' : '')}
+        value={value}
+        scopeKey={kind}
+        disabled={disabled}
+        invalid={!!error}
+        loading={rows.isFetching}
+        options={(rows.isPlaceholderData ? [] : rows.data?.data || []).map(
+          (r) => ({ value: scalar(r.id), label: label(r) }),
+        )}
+        caption={selected.data?.data ? label(selected.data.data) : undefined}
+        onChange={onChange}
+        onSearch={(v) => {
           setQ(v);
           setPage(1);
         }}
         placeholder={t('energy.searchPicker')}
+        status={
+          rows.error || selected.error ? (
+            <BillingError
+              error={rows.error || selected.error}
+              retry={() => {
+                void rows.refetch();
+                if (value) void selected.refetch();
+              }}
+            />
+          ) : undefined
+        }
+        footer={
+          rows.data && rows.data.meta.total > 20 ? (
+            <Paged
+              meta={rows.data.meta}
+              busy={rows.isFetching}
+              onChange={setPage}
+            />
+          ) : undefined
+        }
       />
-      {rows.error ? (
-        <BillingError error={rows.error} retry={() => void rows.refetch()} />
-      ) : !rows.data ? (
-        <LoadingRows />
-      ) : (
-        <>
-          <Choice
-            id={'cashier-' + name}
-            value={value}
-            disabled={disabled}
-            onChange={onChange}
-            options={[
-              ...rows.data.data,
-              ...(!rows.data.data.some((r) => scalar(r.id) === value) &&
-              selected.data
-                ? [selected.data.data]
-                : []),
-            ].map((r) => ({
-              value: scalar(r.id),
-              label: [
-                r.number,
-                r.name,
-                (r.payload as Record<string, unknown> | undefined)
-                  ?.contractNumber,
-              ]
-                .map(scalar)
-                .filter(Boolean)
-                .join(' · '),
-            }))}
-          />
-          <Paged
-            meta={rows.data.meta}
-            busy={rows.isFetching}
-            onChange={setPage}
-          />
-        </>
-      )}
-      {!required && value ? (
-        <Button
-          type='button'
-          variant='outline'
-          disabled={disabled}
-          onClick={() => onChange('')}
-        >
-          {t('energy.clearSelection')}
-        </Button>
-      ) : null}
       {error ? <p className='text-sm text-destructive'>{error}</p> : null}
     </Field>
   );

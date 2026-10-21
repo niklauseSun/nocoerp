@@ -269,7 +269,7 @@ export default function EnergyList({
             <p>{t('energy.restricted')}</p>
           ) : (
             <>
-              <div className='flex flex-wrap gap-2'>
+              <div className='flex flex-wrap items-center gap-2'>
                 <Search
                   value={query.q}
                   onChange={(v) => set('q', v)}
@@ -279,62 +279,39 @@ export default function EnergyList({
                       : 'energy.searchReadings',
                   )}
                 />
-                <Choice
-                  showMobileLabel
-                  value={query.type || 'all'}
-                  ariaLabel={t('energy.fields.type')}
-                  onChange={(v) => set('type', v === 'all' ? '' : v)}
-                  options={['all', 'water', 'electricity'].map((value) => ({
-                    value,
-                    label: t(
-                      value === 'all' ? 'energy.all' : 'energy.types.' + value,
-                    ),
-                  }))}
-                />
-                <Choice
-                  showMobileLabel
-                  value={query.status || 'all'}
-                  ariaLabel={t('energy.fields.status')}
-                  onChange={(v) => set('status', v === 'all' ? '' : v)}
-                  options={[
-                    'all',
-                    ...(kind === 'meters'
-                      ? ['active', 'stopped']
-                      : [
-                          'draft',
-                          'submitted',
-                          'approved',
-                          'rejected',
-                          'voided',
-                        ]),
-                  ].map((value) => ({
-                    value,
-                    label: t(
-                      value === 'all' ? 'energy.all' : 'energy.states.' + value,
-                    ),
-                  }))}
-                />
-                {kind !== 'meters' ? (
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
                   <Choice
                     showMobileLabel
-                    value={
-                      get('billingStatus') === 'all'
-                        ? 'all'
-                        : query.billingStatus || 'all'
-                    }
-                    ariaLabel={t('energy.fields.billingStatus')}
-                    onChange={(v) =>
-                      set(
-                        'billingStatus',
-                        v === 'all' && kind !== 'billing' ? '' : v,
-                      )
-                    }
+                    value={query.type || 'all'}
+                    ariaLabel={t('energy.fields.type')}
+                    onChange={(v) => set('type', v === 'all' ? '' : v)}
+                    options={['all', 'water', 'electricity'].map((value) => ({
+                      value,
+                      label: t(
+                        value === 'all'
+                          ? 'energy.all'
+                          : 'energy.types.' + value,
+                      ),
+                    }))}
+                  />
+                </div>
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                  <Choice
+                    showMobileLabel
+                    value={query.status || 'all'}
+                    ariaLabel={t('energy.fields.status')}
+                    onChange={(v) => set('status', v === 'all' ? '' : v)}
                     options={[
                       'all',
-                      'unbilled',
-                      'reserved',
-                      'issued',
-                      'released',
+                      ...(kind === 'meters'
+                        ? ['active', 'stopped']
+                        : [
+                            'draft',
+                            'submitted',
+                            'approved',
+                            'rejected',
+                            'voided',
+                          ]),
                     ].map((value) => ({
                       value,
                       label: t(
@@ -344,6 +321,39 @@ export default function EnergyList({
                       ),
                     }))}
                   />
+                </div>
+                {kind !== 'meters' ? (
+                  <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                    <Choice
+                      showMobileLabel
+                      value={
+                        get('billingStatus') === 'all'
+                          ? 'all'
+                          : query.billingStatus || 'all'
+                      }
+                      ariaLabel={t('energy.fields.billingStatus')}
+                      onChange={(v) =>
+                        set(
+                          'billingStatus',
+                          v === 'all' && kind !== 'billing' ? '' : v,
+                        )
+                      }
+                      options={[
+                        'all',
+                        'unbilled',
+                        'reserved',
+                        'issued',
+                        'released',
+                      ].map((value) => ({
+                        value,
+                        label: t(
+                          value === 'all'
+                            ? 'energy.all'
+                            : 'energy.states.' + value,
+                        ),
+                      }))}
+                    />
+                  </div>
                 ) : null}
                 {!local ? (
                   <FilterPicker

@@ -114,7 +114,7 @@ export default {
     amount: 'Amount',
     deposit: 'Deposit applied',
     depositCents: 'Deposit applied',
-    reference: 'External reference',
+    reference: 'Payment reference',
     evidence: 'Evidence',
     reason: 'Reason',
     notes: 'Notes',

@@ -221,7 +221,7 @@ export default function InvoiceList() {
             <p>{t('invoice.restricted')}</p>
           ) : (
             <>
-              <div className='flex flex-wrap gap-2'>
+              <div className='flex flex-wrap items-center gap-2'>
                 <Search
                   value={ownQuery.q}
                   onChange={(v) => set('q', v)}
@@ -229,57 +229,61 @@ export default function InvoiceList() {
                     'invoice.search' + kind[0].toUpperCase() + kind.slice(1),
                   )}
                 />
-                <Choice
-                  ariaLabel={t('invoice.fields.status')}
-                  value={
-                    get(kind === 'configs' ? 'enabled' : 'status') || 'all'
-                  }
-                  onChange={(v) =>
-                    set(
-                      kind === 'configs' ? 'enabled' : 'status',
-                      v === 'all' ? '' : v,
-                    )
-                  }
-                  options={[
-                    'all',
-                    ...(kind === 'configs'
-                      ? ['true', 'false']
-                      : kind === 'sources'
-                        ? [
-                            'awaitingInfo',
-                            'ready',
-                            'partiallyInvoiced',
-                            'invoiced',
-                            'redRequired',
-                            'excluded',
-                            'inactive',
-                          ]
-                        : ['issued', 'partiallyRed', 'fullyRed']),
-                  ].map((value) => ({
-                    value,
-                    label: t(
-                      value === 'all'
-                        ? 'invoice.all'
-                        : 'invoice.states.' + value,
-                    ),
-                  }))}
-                />
-                {kind === 'invoices' ? (
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
                   <Choice
-                    ariaLabel={t('invoice.fields.kind')}
-                    value={ownQuery.kind || 'all'}
-                    onChange={(v) => set('kind', v === 'all' ? '' : v)}
-                    options={['all', 'blue', 'red'].map((value) => ({
+                    ariaLabel={t('invoice.fields.status')}
+                    value={
+                      get(kind === 'configs' ? 'enabled' : 'status') || 'all'
+                    }
+                    onChange={(v) =>
+                      set(
+                        kind === 'configs' ? 'enabled' : 'status',
+                        v === 'all' ? '' : v,
+                      )
+                    }
+                    options={[
+                      'all',
+                      ...(kind === 'configs'
+                        ? ['true', 'false']
+                        : kind === 'sources'
+                          ? [
+                              'awaitingInfo',
+                              'ready',
+                              'partiallyInvoiced',
+                              'invoiced',
+                              'redRequired',
+                              'excluded',
+                              'inactive',
+                            ]
+                          : ['issued', 'partiallyRed', 'fullyRed']),
+                    ].map((value) => ({
                       value,
                       label: t(
                         value === 'all'
                           ? 'invoice.all'
-                          : value === 'red'
-                            ? 'invoice.redKind'
-                            : 'invoice.blue',
+                          : 'invoice.states.' + value,
                       ),
                     }))}
                   />
+                </div>
+                {kind === 'invoices' ? (
+                  <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                    <Choice
+                      ariaLabel={t('invoice.fields.kind')}
+                      value={ownQuery.kind || 'all'}
+                      onChange={(v) => set('kind', v === 'all' ? '' : v)}
+                      options={['all', 'blue', 'red'].map((value) => ({
+                        value,
+                        label: t(
+                          value === 'all'
+                            ? 'invoice.all'
+                            : value === 'red'
+                              ? 'invoice.redKind'
+                              : 'invoice.blue',
+                        ),
+                      }))}
+                    />
+                  </div>
                 ) : null}
                 <LeaseDateFilter
                   label={t('invoice.fields.createdAt')}

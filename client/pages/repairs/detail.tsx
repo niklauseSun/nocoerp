@@ -1,3 +1,4 @@
+import { RepairPhotoPreview } from './photos.js';
 import RepairProcurement from '../procurement/repair-preview.js';
 import { Related } from '../inspections/related.js';
 import { str } from './helpers.js';
@@ -218,6 +219,18 @@ export default function RepairDetail({
                   </div>
                 ))}
             </Group>
+            <Group title={t('repair.photos.title')}>
+              {(['report', 'processing', 'acceptance'] as const).map(
+                (stage) => (
+                  <div key={stage} className='flex flex-col gap-2'>
+                    <h3 className='font-medium'>
+                      {t('repair.photos.' + stage)}
+                    </h3>
+                    <RepairPhotoPreview files={r.photos?.[stage] ?? []} />
+                  </div>
+                ),
+              )}
+            </Group>
             {inspectionLinks ? <RepairProcurement id={repairId!} /> : null}
             {inspectionLinks ? (
               <Related kind='issues' scope='repair' id={repairId!} />
@@ -254,6 +267,9 @@ export default function RepairDetail({
                   ) : null}
                   {str(e.payload.evidence) ? (
                     <LongText>{str(e.payload.evidence)}</LongText>
+                  ) : null}
+                  {e.photos?.length ? (
+                    <RepairPhotoPreview files={e.photos} />
                   ) : null}
                   {e.action === 'complete' ? (
                     <Money value={str(e.payload.cost)} />

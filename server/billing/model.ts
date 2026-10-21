@@ -104,7 +104,7 @@ export const billValuesSchema = z
           .object({
             title: z.string().trim().min(1).max(100),
             amount,
-            reference: z.string().trim().min(1).max(100),
+            reference: z.string().trim().max(100).default(''),
             reason: z.string().trim().min(1).max(500),
             evidence: z.string().trim().min(1).max(500),
           })
@@ -167,11 +167,21 @@ export const receiptSchema = z
     date,
     amount,
     method: z.enum(['bank', 'cash', 'other']),
-    reference: z.string().trim().min(1).max(100),
+    reference: z.string().trim().max(100).default(''),
     evidence: z.string().trim().min(1).max(500),
     notes: text(1000),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.method === 'bank' && !v.reference)
+      ctx.addIssue({
+        code: 'too_small',
+        origin: 'string',
+        minimum: 1,
+        inclusive: true,
+        path: ['reference'],
+      });
+  });
 export const listSchema = z
   .object({
     q: z.string().trim().max(100).default(''),

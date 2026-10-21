@@ -3,6 +3,7 @@ import { useNavigationGuard } from '@nocobase/app-client';
 import { useBusinessIdentity } from './hooks.js';
 import { AssetError as ErrorPanel } from '../assets/shared.js';
 import { ContractAssetsSelector } from '../assets/bindings.js';
+import { AssociationPicker } from './association-picker.js';
 import { MerchantPicker } from './merchant-picker.js';
 import { useCreateLicense } from './merchant-profile/create-license.js';
 import { DiscardDialog } from './discard-dialog.js';
@@ -92,7 +93,13 @@ export default function BusinessForm() {
         .superRefine((values, ctx) => {
           for (const field of fields) {
             const value = values[field.key];
-            if (field.type === 'boolean') continue;
+            if (
+              field.type === 'boolean' ||
+              (kind === 'merchants' &&
+                field.key === 'bindingStart' &&
+                !values.assetId)
+            )
+              continue;
             if (!field.optional && !scalar(value ?? '').trim())
               ctx.addIssue({
                 code: 'custom',
@@ -255,6 +262,7 @@ export default function BusinessForm() {
         assetSelection,
       });
   }, [dirty, preview, draftKey, assetSelection]);
+  const merchantAssetId = useWatch({ control: form.control, name: 'assetId' });
   const merchantId = useWatch({ control: form.control, name: 'merchantId' });
   const assetIds = assetSelection
     ? assetSelection.merchantId === scalar(merchantId)
@@ -264,7 +272,9 @@ export default function BusinessForm() {
       ? ((latest.data?.data.payload.assetIds as string[] | undefined) ?? [])
       : [];
   const pending = form.formState.isSubmitting || license.busy;
-  useNavigationGuard(() => !pending);
+  const completedRef = useRef(false);
+  // A successful save must pass the guard before React clears submitting state.
+  useNavigationGuard(() => completedRef.current || !pending);
   const close = () => {
     void navigate(
       { pathname: '..', search: location.search },
@@ -339,6 +349,7 @@ export default function BusinessForm() {
       license.clear();
       drafts.delete(draftKey);
       form.reset(values);
+      completedRef.current = true;
       close();
     } catch (cause) {
       if (kind === 'merchants' && !id)
@@ -479,8 +490,11 @@ export default function BusinessForm() {
             .filter(
               (spec) =>
                 kind !== 'merchants' ||
-                spec.key !== 'categoryName' ||
-                preview.category === 'other',
+                (spec.key !== 'assetId' &&
+                  (!['bindingStart', 'bindingEnd'].includes(spec.key) ||
+                    !!merchantAssetId) &&
+                  (spec.key !== 'categoryName' ||
+                    preview.category === 'other')),
             )
             .map((spec) => (
               <Fragment key={spec.key}>
@@ -524,6 +538,56 @@ export default function BusinessForm() {
                             { value: 'false', label: t('hyl.copy.no') },
                           ]}
                         />
+                      ) : kind === 'merchants' &&
+                        ['unit', 'userId'].includes(spec.key) ? (
+                        <AssociationPicker
+                          id={inputId}
+                          kind={spec.key === 'unit' ? 'asset' : 'user'}
+                          value={
+                            spec.key === 'unit'
+                              ? scalar(merchantAssetId)
+                              : scalar(field.value)
+                          }
+                          fallback={
+                            spec.key === 'unit'
+                              ? scalar(field.value)
+                              : field.value &&
+                                  latest.data?.data.payload.userId ===
+                                    scalar(field.value)
+                                ? scalar(latest.data?.data.payload.userName) ||
+                                  t('hyl.profile.linkedAccount')
+                                : ''
+                          }
+                          invalid={fieldState.invalid}
+                          disabled={pending || license.uncertain}
+                          onChange={(value, label) => {
+                            if (spec.key === 'unit') {
+                              form.setValue('assetId', value, {
+                                shouldDirty: true,
+                              });
+                              if (!value) {
+                                form.setValue('bindingStart', '', {
+                                  shouldDirty: true,
+                                });
+                                form.setValue('bindingEnd', '', {
+                                  shouldDirty: true,
+                                });
+                              }
+                              if (value && !form.getValues('bindingStart'))
+                                form.setValue(
+                                  'bindingStart',
+                                  new Intl.DateTimeFormat('en-CA', {
+                                    timeZone: 'Asia/Shanghai',
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                  }).format(new Date()),
+                                  { shouldDirty: true },
+                                );
+                              field.onChange(label.split(' · ')[0]);
+                            } else field.onChange(value);
+                          }}
+                        />
                       ) : spec.type === 'select' ? (
                         <Choice
                           id={inputId}
@@ -557,16 +621,19 @@ export default function BusinessForm() {
                           value={scalar(field.value ?? '')}
                           onChange={field.onChange}
                         />
-                      ) : kind === 'contracts' && spec.type === 'merchant' ? (
+                      ) : spec.type === 'merchant' ? (
                         <MerchantPicker
                           invalid={fieldState.invalid}
                           id={inputId}
                           value={scalar(field.value ?? '')}
-                          onChange={field.onChange}
-                          disabled={pending || !!id}
+                          onChange={(value) => {
+                            field.onChange(value);
+                            if (kind === 'settlements')
+                              form.setValue('contractId', '');
+                          }}
+                          disabled={pending || license.uncertain || !!id}
                         />
-                      ) : spec.type === 'merchant' ||
-                        spec.type === 'contract' ? (
+                      ) : spec.type === 'contract' ? (
                         <RecordPicker
                           id={inputId}
                           disabled={
@@ -574,9 +641,7 @@ export default function BusinessForm() {
                             license.uncertain ||
                             (!!id && spec.key === 'merchantId')
                           }
-                          kind={
-                            spec.type === 'merchant' ? 'merchants' : 'contracts'
-                          }
+                          kind='contracts'
                           value={scalar(field.value ?? '')}
                           onChange={(v) => {
                             field.onChange(v);
@@ -641,6 +706,11 @@ export default function BusinessForm() {
                         ) : spec.type === 'month' ? (
                           <FieldDescription>
                             {t('hyl.copy.dateHelp')}
+                          </FieldDescription>
+                        ) : null}
+                        {kind === 'merchants' && spec.key === 'userId' ? (
+                          <FieldDescription>
+                            {t('hyl.profile.accountAssociationHelp')}
                           </FieldDescription>
                         ) : null}
                         <FieldError errors={[fieldState.error]} />

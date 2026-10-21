@@ -27,21 +27,21 @@ function role(
   return set.build();
 }
 export const hylPermissionSets = [
-  role('hyl-finance', '海源里财务', 'allRecords', {
+  role('hyl-finance', '财务人员', 'allRecords', {
     merchants: ['read', 'write'],
     contracts: ['read', 'write'],
     revenueReports: ['read', 'write', 'submit', 'review'],
     expenses: ['read', 'write', 'submit', 'review'],
     settlements: ['read', 'write', 'review', 'confirm', 'pay'],
   }),
-  role('hyl-merchant', '海源里商户', 'hyl.ownMerchant', {
+  role('hyl-merchant', '商户用户', 'hyl.ownMerchant', {
     merchants: ['read'],
     contracts: ['read'],
     revenueReports: ['read', 'write', 'submit'],
     expenses: ['read', 'write', 'submit'],
     settlements: ['read', 'confirm'],
   }),
-  role('hyl-observer', '海源里只读管理', 'allRecords', {
+  role('hyl-observer', '只读管理人员', 'allRecords', {
     merchants: ['read'],
     contracts: ['read'],
     revenueReports: ['read'],

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Picker } from '../../client/pages/procurement/common.js';
 import Detail from '../../client/pages/procurement/detail.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -285,3 +287,50 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('searches suppliers in one scoped input and clears both ID and caption', async () => {
+  api.request.mockResolvedValue({
+    data: [{ id: 'supplier-a', title: '演示维修供应商', number: 'GYS-A' }],
+    meta: { page: 1, pageSize: 20, total: 1 },
+  });
+  function Example() {
+    const [value, setValue] = useState(''),
+      [caption, setCaption] = useState('');
+    return (
+      <>
+        <Picker
+          name='supplierId'
+          path='purchaseSuppliers'
+          query={{ projectId: 'project-a' }}
+          value={value}
+          caption={caption}
+          onChange={(id, label) => {
+            setValue(id);
+            setCaption(label);
+          }}
+        />
+        <output data-testid='supplier'>
+          {value}:{caption}
+        </output>
+      </>
+    );
+  }
+  mount(<Example />, '/picker');
+  const user = userEvent.setup(),
+    input = screen.getByRole('combobox', { name: '供应商 *' });
+  await user.type(input, '维修');
+  expect(
+    api.request.mock.calls.some(
+      ([r]) => r.query?.projectId === 'project-a' && r.query?.q === '维修',
+    ),
+  ).toBe(true);
+  await user.click(
+    await screen.findByRole('option', { name: 'GYS-A · 演示维修供应商' }),
+  );
+  expect(screen.getByTestId('supplier')).toHaveTextContent(
+    'supplier-a:GYS-A · 演示维修供应商',
+  );
+  await user.click(screen.getByRole('button', { name: '清空供应商选择' }));
+  expect(screen.getByTestId('supplier')).toHaveTextContent(':');
+  expect(input).toHaveValue('');
+});

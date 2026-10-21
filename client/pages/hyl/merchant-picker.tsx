@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import {
@@ -109,6 +110,24 @@ export function MerchantPicker({
           }}
         >
           <InputGroupAddon align='inline-end'>
+            {value && !disabled ? (
+              <InputGroupButton
+                type='button'
+                variant='ghost'
+                size='icon-xs'
+                aria-label={t('hyl.copy.clearMerchant')}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setChosen(null);
+                  setQ('');
+                  setPage(1);
+                  onChange('');
+                  document.getElementById(id)?.focus();
+                }}
+              >
+                <X className='pointer-events-none size-4' />
+              </InputGroupButton>
+            ) : null}
             <ComboboxTrigger
               aria-label={t('hyl.copy.chooseMerchant')}
               disabled={disabled}

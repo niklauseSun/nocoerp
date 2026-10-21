@@ -1,5 +1,13 @@
 export default {
   profile: {
+    accountAssociationHelp:
+      '仅建立登录账号关联，不自动授予角色、功能或项目权限。',
+    linkedAccount: '已关联登录账号',
+    searchAsset: '搜索铺位或摊位名称、编号',
+    searchUser: '搜索姓名、用户名或邮箱',
+    unlinkAccount: '取消账号选择',
+    clearAsset: '取消铺位选择',
+    pickerDenied: '没有查询权限，请联系有权限的管理员。',
     retryCreationHelp:
       '保存结果尚未确认。请再次点击创建，使用原提交内容找回结果，避免重复建档。',
     businessLicense: '营业执照（选填）',
@@ -106,7 +114,9 @@ export default {
     accountName: '收款户名',
     bank: '开户行',
     account: '收款账号',
-    userId: '绑定登录用户ID',
+    userId: '绑定登录账号',
+    bindingStart: '铺位绑定开始日期',
+    bindingEnd: '铺位绑定结束日期（留空长期）',
     active: '启用',
     notes: '备注',
     number: '编号',
@@ -207,6 +217,13 @@ export default {
     cancelled: '已撤销',
   },
   copy: {
+    sourceRecord: '来源单据',
+    sourceSearch: '搜索商户、合同或单据编号',
+    sourceLimit: '最多选择 {{count}} 条来源，可移除已选项或点 × 清空。',
+    clearRecord: '清空{{name}}选择',
+    chooseRecord: '选择{{name}}',
+    record: '记录',
+    clearMerchant: '取消商户选择',
     searchMerchant: '输入商户名称或编号搜索',
     chooseMerchant: '选择商户',
     loadingMerchants: '正在加载商户',
@@ -266,6 +283,11 @@ export default {
     noContract: '请先创建覆盖本期的合同。',
   },
   errors: {
+    ASSET_BINDING_OVERLAP:
+      '该铺位在所选期间已有商户绑定，请选择其他铺位或调整日期。',
+    ASSET_LEAF_REQUIRED: '请选择一个铺位或摊位。',
+    ASSET_UNAVAILABLE: '该铺位或其上级资产当前不可用。',
+    ASSET_AREA: '绑定面积不能超过可租面积。',
     DEPOSIT_OVERDRAW: '可用押金不足，或结转金额超过新合同押金目标。',
     LEASE_RETRY_CONFLICT: '此提交编号已登记其他内容，请刷新并核对台账后继续。',
     LEASE_CLOSED: '合同已归档，请先说明原因并重开财务结清。',

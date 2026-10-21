@@ -72,6 +72,12 @@ describe('app client routes', () => {
       expect(own.length).toBeGreaterThan(1);
       expect(own.every((r) => r.authorizedAs === `hyl-${kind}`)).toBe(true);
     }
+    expect(
+      authorizations.filter((r) => r.name.startsWith('hyl-operation-log')),
+    ).toEqual([
+      { name: 'hyl-operation-logs', authorizedAs: 'unrestricted' },
+      { name: 'hyl-operation-log-detail', authorizedAs: 'unrestricted' },
+    ]);
     expect(authorizations.filter((r) => !r.name.startsWith('hyl-'))).toEqual([
       { name: 'mobile-workbench', authorizedAs: null },
       { name: 'mobile-workbench-todo', authorizedAs: null },

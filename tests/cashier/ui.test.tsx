@@ -1,3 +1,4 @@
+import Refund from '../../client/pages/cashier/refund.js';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   TestI18nProvider,
@@ -81,6 +82,7 @@ function mount(element: React.ReactNode, path: string) {
               }
             >
               <Route path='new' element={element} />
+              <Route path=':orderId/edit' element={element} />
               <Route path=':orderId/void' element={element} />
               <Route path=':orderId' element={<p>登记完成</p>} />
             </Route>
@@ -128,14 +130,15 @@ it('preserves checkout input and a saved draft identity when posting has an unce
   mount(<Checkout />, '/cashier/orders/new');
   const user = userEvent.setup();
   await user.type(screen.getByLabelText('商户 *'), 'm1');
-  await user.click(await screen.findByRole('checkbox'));
+  await user.click(screen.getByRole('combobox', { name: '已选账单' }));
+  await user.click(await screen.findByRole('option', { name: /ZD-TEST/ }));
   await screen.findByText(/ZD-TEST · HT-TEST/);
   await user.click(screen.getByRole('button', { name: '添加实收分笔' }));
   const amounts = screen.getAllByLabelText('金额 *');
   await user.clear(amounts[0]);
   await user.type(amounts[0], '600');
   await user.type(amounts[1], '600');
-  await user.type(screen.getByLabelText('外部流水 *'), 'CASH-TEST');
+  await user.type(screen.getByLabelText('支付流水号 *'), 'CASH-TEST');
   await user.type(screen.getByLabelText('凭证 *'), '模拟银行回单');
   await user.type(screen.getByLabelText('分合同金额 · HT-TEST *'), '600');
   let posts = 0;
@@ -295,3 +298,95 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('can clear a full checkout selection and its contract splits while preserving the payment amount', async () => {
+  const targets = Array.from({ length: 50 }, (_, i) => ({
+    billId: 'b' + i,
+    contractId: 'c' + i,
+    expectedBillVersion: 1,
+    expectedLeaseVersion: 0,
+    amount: '1',
+    deposit: '0',
+  }));
+  const payments = [
+    {
+      key: 'p',
+      method: 'cash',
+      amount: '50',
+      reference: '',
+      evidence: 'cash',
+      splits: targets.map((r) => ({ contractId: r.contractId, amount: '1' })),
+    },
+  ];
+  api.request.mockImplementation(async (r) =>
+    r.path === 'cashierOrders/o1'
+      ? {
+          data: {
+            id: 'o1',
+            number: 'SY-CAP',
+            version: 1,
+            status: 'draft',
+            payload: {
+              input: {
+                merchantId: 'm1',
+                date: '2026-10-20',
+                notes: '',
+                targets,
+                payments,
+              },
+            },
+          },
+        }
+      : { data: [], meta: { page: 1, pageSize: 10, total: 0 } },
+  );
+  mount(<Checkout />, '/cashier/orders/o1/edit');
+  const user = userEvent.setup();
+  const source = await screen.findByRole('combobox', { name: '已选账单' });
+  expect(source).toBeEnabled();
+  expect(screen.getByLabelText('分合同金额 · c0 *')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: '清空已选账单选择' }));
+  expect(screen.queryByLabelText('分合同金额 · c0 *')).toBeNull();
+  expect(screen.getByLabelText('金额 *')).toHaveValue('50');
+  expect(source).toHaveFocus();
+});
+
+it('clears twenty refund receipt sources at the cap and keeps independent refund fields', async () => {
+  const receipts = Array.from({ length: 20 }, (_, i) => ({
+    id: 'r' + i,
+    number: 'SK-' + i,
+    allowedActions: [],
+    merchantName: '商户甲',
+    contractNumber: 'HT-' + i,
+    contractTitle: '合同' + i,
+    version: 1,
+    status: 'active',
+    unusedCents: '100',
+    payload: { method: 'cash' },
+    entries: [],
+  }));
+  api.request.mockImplementation(async (r) =>
+    r.path === 'receipts'
+      ? { data: receipts, meta: { page: 1, pageSize: 20, total: 20 } }
+      : { data: receipts.find((row) => 'receipts/' + row.id === r.path) },
+  );
+  mount(<Refund />, '/cashier/refunds/new');
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText('商户 *'), 'm1');
+  await user.type(screen.getByLabelText('原因 *'), '演示退款');
+  for (let i = 0; i < 20; i++) {
+    const source = screen.getByRole('combobox', { name: '来源明细' });
+    await user.click(source);
+    await user.click(
+      await screen.findByRole('option', {
+        name: new RegExp('^SK-' + i + ' ·'),
+      }),
+    );
+    await waitFor(() => expect(source).toBeEnabled());
+  }
+  const source = screen.getByRole('combobox', { name: '来源明细' });
+  expect(source).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: '清空来源明细选择' }));
+  expect(screen.queryByText('SK-0 · 现金')).toBeNull();
+  expect(screen.getByLabelText('原因 *')).toHaveValue('演示退款');
+  expect(source).toHaveFocus();
+});

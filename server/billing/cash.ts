@@ -33,7 +33,8 @@ export async function recordReceipt(
       this.version(await getLease(c, contract), body.expectedLeaseVersion);
       if (cents(body.amount) <= 0n)
         fail('PAYMENT_REQUIRED', 'INVALID_ARGUMENT');
-      await assertCashReference(c, contract.merchantId, body.reference);
+      const reference = body.reference || `SK-${body.requestId}`;
+      await assertCashReference(c, contract.merchantId, reference);
       const id = randomUUID(),
         now = new Date().toISOString();
       const created = await this.hyl.runtime.create(
@@ -45,7 +46,7 @@ export async function recordReceipt(
           merchantId: contract.merchantId,
           version: 0,
           date: body.date,
-          reference: body.reference,
+          reference,
           amountCents: cents(body.amount).toString(),
           allocatedCents: '0',
           refundedCents: '0',
@@ -63,7 +64,7 @@ export async function recordReceipt(
       );
       await this.audit(c, contract.id, access, 'receive', {
         receiptId: id,
-        reference: body.reference,
+        reference,
       });
       return created.record as unknown as Receipt;
     },

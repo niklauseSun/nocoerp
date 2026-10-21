@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { authorizationToken } from '@nocobase/app-plugin-authorization';
 import { definePermissionSet } from '@nocobase/authorization/permission-sets';
 import { userManagementServiceToken } from '@nocobase/app-plugin-users/server/tokens';
@@ -134,7 +135,85 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
     merchantId: merchant.id,
     contractId: contract.id,
     occurredOn: '2026-10-17',
+    reportPhotoIds: [] as string[],
   };
+  const bytes = await sharp({
+    create: { width: 2, height: 2, channels: 3, background: '#ffffff' },
+  })
+    .png()
+    .toBuffer();
+  const upload = async (
+    stage = 'report',
+    orderId?: string,
+    status = 201,
+    session = admin,
+  ) => {
+    const form = new FormData();
+    form.append(
+      'file',
+      new File([new Uint8Array(bytes)], '现场.png', { type: 'image/png' }),
+    );
+    const response = await session.fetch(
+      `/repairFiles/uploadOne?assetId=${asset.id}&stage=${stage}${orderId ? '&orderId=' + orderId : ''}`,
+      { method: 'POST', headers: { origin: 'http://localhost' }, body: form },
+    );
+    expect(response.status).toBe(status);
+    return ((await response.json()) as any).data?.record;
+  };
+  expect(
+    (
+      await request(`/repairFiles/uploadOne?assetId=${asset.id}&stage=report`, {
+        method: 'POST',
+      })
+    ).status,
+  ).toBe(401);
+  const reportPhoto = await upload();
+  values.reportPhotoIds = [reportPhoto.id];
+  expect((await call('/repairPhotos/' + reportPhoto.id)).filename).toBe(
+    '现场.png',
+  );
+  const downloaded = await admin.fetch(
+    'http://localhost/main/uploads/repairPhotos/' + reportPhoto.id + '.png',
+  );
+  expect(downloaded.status).toBe(200);
+  expect(Buffer.from(await downloaded.arrayBuffer())).toEqual(bytes);
+  expect(
+    (
+      await request(
+        'http://localhost/main/uploads/repairPhotos/' + reportPhoto.id + '.png',
+      )
+    ).status,
+  ).toBe(401);
+  const invalidForm = new FormData();
+  invalidForm.append(
+    'file',
+    new File(['invalid'], 'fake.png', { type: 'image/png' }),
+  );
+  const invalidResponse = await admin.fetch(
+    `/repairFiles/uploadOne?assetId=${asset.id}&stage=report`,
+    {
+      method: 'POST',
+      body: invalidForm,
+      headers: { origin: 'http://localhost' },
+    },
+  );
+  expect(invalidResponse.status).toBe(400);
+  expect(JSON.stringify(await invalidResponse.json())).toContain(
+    'REPAIR_PHOTO_TYPE',
+  );
+  const pdfForm = new FormData();
+  pdfForm.append(
+    'file',
+    new File(['%PDF-'], 'document.pdf', { type: 'application/pdf' }),
+  );
+  const pdfResponse = await admin.fetch(
+    `/repairFiles/uploadOne?assetId=${asset.id}&stage=report`,
+    { method: 'POST', body: pdfForm, headers: { origin: 'http://localhost' } },
+  );
+  expect(pdfResponse.status).toBe(400);
+  expect(JSON.stringify(await pdfResponse.json())).toContain(
+    'REPAIR_PHOTO_TYPE',
+  );
   const requestId = randomUUID();
   let order = await call('/repairOrders', { requestId, values });
   expect(order.status).toBe('reported');
@@ -192,7 +271,8 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
   await act('start', { note: 'stale' }, 409, oldVersion);
   await act('start', { note: '现场检查' });
   expect(order.status).toBe('processing');
-  await act('progress', { note: '更换密封圈' });
+  const workPhoto = await upload('processing', order.id);
+  await act('progress', { note: '更换密封圈', photoIds: [workPhoto.id] });
   await act('complete', {
     note: '第一次处理完成',
     evidence: '记录一',
@@ -207,11 +287,18 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
     evidence: '记录二',
     cost: '120.25',
   });
+  const acceptancePhoto = await upload('acceptance', order.id);
+  await act(
+    'accept',
+    { note: 'wrong stage image', photoIds: [reportPhoto.id] },
+    400,
+  );
   const acceptRequest = {
     requestId: randomUUID(),
     expectedVersion: order.version,
     action: 'accept',
     note: '通水检查无渗漏',
+    photoIds: [acceptancePhoto.id],
   };
   order = await call('/repairOrders/' + order.id + '/actions', acceptRequest);
   const replay = await call(
@@ -224,6 +311,17 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
   await act('cancel', { note: 'terminal' }, 400);
   const detail = await call('/repairOrders/' + order.id);
   expect(detail.events.meta.total).toBe(9);
+  expect(detail.photos.report.map((f: any) => f.id)).toEqual([reportPhoto.id]);
+  expect(detail.photos.processing.map((f: any) => f.id)).toEqual([
+    workPhoto.id,
+  ]);
+  expect(detail.photos.acceptance.map((f: any) => f.id)).toEqual([
+    acceptancePhoto.id,
+  ]);
+  expect(
+    detail.events.data.find((e: any) => e.action === 'progress').photos[0].id,
+  ).toBe(workPhoto.id);
+  await upload('processing', order.id, 400);
   expect(detail.allowedActions).toEqual([]);
   expect(detail.events.data.some((e: any) => e.action === 'reject')).toBe(true);
   const list = await admin.fetch(
@@ -250,6 +348,17 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
     403,
   );
   expect((await deniedSession.fetch('/repairAssignees')).status).toBe(403);
+  await upload('report', undefined, 403, deniedSession);
+  expect(
+    (await deniedSession.fetch('/repairPhotos/' + reportPhoto.id)).status,
+  ).toBe(403);
+  expect(
+    (
+      await deniedSession.fetch(
+        'http://localhost/main/uploads/repairPhotos/' + reportPhoto.id + '.png',
+      )
+    ).status,
+  ).toBe(403);
   await authz.permissionSets.create(
     definePermissionSet('repair-asset-reader')
       .grant(
@@ -273,9 +382,18 @@ test('repair lifecycle, linked records, rework, replay, scope and terminal prote
   expect((await scoped.fetch('/repairOrders/' + order.id)).status).toBe(403);
   let publicOrder = await call('/repairOrders', {
     requestId: randomUUID(),
-    values: { ...values, merchantId: '', contractId: '' },
+    values: { ...values, merchantId: '', contractId: '', reportPhotoIds: [] },
   });
   const publicId = publicOrder.id;
+  expect(
+    (
+      await scoped.fetch(
+        'http://localhost/main/uploads/repairPhotos/' + reportPhoto.id + '.png',
+      )
+    ).status,
+  ).toBe(403);
+  // A file already linked to the first order cannot be borrowed by a second order.
+  await call('/repairOrders', { requestId: randomUUID(), values }, 'POST', 400);
   publicOrder = await call('/repairOrders/' + publicId + '/actions', {
     requestId: randomUUID(),
     expectedVersion: publicOrder.version,

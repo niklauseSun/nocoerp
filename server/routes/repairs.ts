@@ -1,3 +1,4 @@
+import { photoRecord } from '../repairs/photos.js';
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import type { Application } from '@nocobase/app-server/application';
@@ -58,11 +59,17 @@ const record = z
   .loose()
   .meta({ ref: 'RepairOrder' });
 const detail = record.extend({
+  photos: z.object({
+    report: z.array(photoRecord),
+    processing: z.array(photoRecord),
+    acceptance: z.array(photoRecord),
+  }),
   events: z.object({
     data: z.array(
       z.object({
         id: z.string(),
         orderId: z.string(),
+        photos: z.array(photoRecord),
         actor: z.string(),
         action: z.string(),
         fromState: z.string(),
@@ -89,7 +96,10 @@ const describe = (name: string, list = false, schema: z.ZodType = record) =>
     },
   });
 export default defineApiRoutes<Application>((app) => {
-  const service = new RepairService(app.container.resolve(hylToken)),
+  const service = new RepairService(
+      app.container.resolve(hylToken),
+      app.publicBasePath ?? '',
+    ),
     router = new Hono<AuthEnv & AuthorizationEnv>(),
     auth = app.container.resolve(authenticationToken),
     authz = app.container.resolve(authorizationToken);

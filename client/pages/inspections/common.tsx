@@ -1,16 +1,15 @@
+import {
+  useRecordSearchState,
+  useRecordSearchScope,
+} from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { StatusBadge } from '#components/status-badge';
 import { Field, FieldLabel } from '#components/ui/field';
 import { Button } from '#components/ui/button';
 import { useBusinessQuery } from '../hyl/hooks.js';
-import {
-  Choice,
-  Search,
-  Paged,
-  BillingError,
-  LoadingRows,
-} from '../cashier/common.js';
+import { Paged, BillingError } from '../cashier/common.js';
 import type {
   RecordRow,
   Event,
@@ -65,39 +64,88 @@ export function Picker({
   kind,
   value,
   onChange,
+  disabled = false,
   multiple = false,
   caption = '',
   captions = {},
 }: {
   kind: 'inspectionAssets' | 'inspectionAssignees';
   value: string[];
+  disabled?: boolean;
   onChange: (v: string[]) => void;
   multiple?: boolean;
   caption?: string;
   captions?: Record<string, string>;
 }) {
   const { t } = useTranslation(),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
-    [labels, setLabels] = useState<Record<string, string>>({});
+    { q, setQ, page, setPage } = useRecordSearchState(kind),
+    [labelCache, setLabelCache] = useState<{
+      scope: string;
+      labels: Record<string, string>;
+    }>({ scope: '', labels: {} });
+  const scope = useRecordSearchScope(kind),
+    labels = labelCache.scope === scope ? labelCache.labels : {};
   const rows = useBusinessQuery<
     Page<{ id: string; name: string; number?: string }>
   >(kind, { q, page, pageSize: 20 });
-  const choices = rows.isPlaceholderData ? [] : (rows.data?.data ?? []);
+  const choices = rows.isPlaceholderData ? [] : rows.data?.data || [],
+    title = t('inspection.fields.' + (multiple ? 'assets' : 'assigneeId'));
   return (
     <Field>
       <FieldLabel htmlFor={'cashier-' + (multiple ? 'assets' : 'assigneeId')}>
-        {t('inspection.fields.' + (multiple ? 'assets' : 'assigneeId'))} *
+        {title} *
       </FieldLabel>
-      <Search
-        value={q}
-        onChange={(v) => {
+      <RecordSearch
+        disabled={disabled}
+        id={'cashier-' + (multiple ? 'assets' : 'assigneeId')}
+        label={title + ' *'}
+        value={multiple ? '' : value[0] || ''}
+        scopeKey={kind}
+        caption={!multiple ? captions[value[0]] || caption : undefined}
+        hasSelection={multiple && value.length > 0}
+        onClear={() => onChange([])}
+        loading={rows.isFetching}
+        options={choices
+          .filter((r) => !multiple || !value.includes(r.id))
+          .map((r) => ({
+            value: r.id,
+            label: [r.number, r.name].filter(Boolean).join(' · '),
+          }))}
+        onSearch={(v) => {
           setQ(v);
           setPage(1);
         }}
+        onChange={(id, label) => {
+          if (!id) {
+            if (!multiple) onChange([]);
+            return;
+          }
+          setLabelCache((v) => ({
+            scope,
+            labels: { ...(v.scope === scope ? v.labels : {}), [id]: label },
+          }));
+          onChange(multiple ? [...new Set([...value, id])].slice(0, 20) : [id]);
+        }}
         placeholder={t('inspection.pickerSearch')}
+        status={
+          rows.error ? (
+            <BillingError
+              error={rows.error}
+              retry={() => void rows.refetch()}
+            />
+          ) : undefined
+        }
+        footer={
+          rows.data && rows.data.meta.total > 20 ? (
+            <Paged
+              meta={rows.data.meta}
+              onChange={setPage}
+              busy={rows.isFetching}
+            />
+          ) : undefined
+        }
       />
-      {value.length ? (
+      {multiple && value.length ? (
         <div className='flex flex-wrap gap-2'>
           {value.map((id) => (
             <Button
@@ -116,38 +164,6 @@ export function Picker({
           ))}
         </div>
       ) : null}
-      {rows.error ? (
-        <BillingError error={rows.error} retry={() => void rows.refetch()} />
-      ) : !rows.data || rows.isPlaceholderData ? (
-        <LoadingRows />
-      ) : (
-        <>
-          <Choice
-            id={'cashier-' + (multiple ? 'assets' : 'assigneeId')}
-            value={multiple ? '' : (value[0] ?? '')}
-            onChange={(id) => {
-              const r = choices.find((a) => a.id === id);
-              if (!r) return;
-              setLabels((v) => ({
-                ...v,
-                [id]: [r.number, r.name].filter(Boolean).join(' · '),
-              }));
-              onChange(
-                multiple ? [...new Set([...value, id])].slice(0, 20) : [id],
-              );
-            }}
-            options={choices.map((v) => ({
-              value: v.id,
-              label: [v.number, v.name].filter(Boolean).join(' · '),
-            }))}
-          />
-          <Paged
-            meta={rows.data.meta}
-            onChange={setPage}
-            busy={rows.isFetching}
-          />
-        </>
-      )}
       {multiple ? (
         <p className='text-sm text-muted-foreground'>
           {t('inspection.selection', { count: value.length })}

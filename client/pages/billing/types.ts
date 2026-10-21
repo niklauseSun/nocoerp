@@ -149,6 +149,7 @@ export interface Bill {
   overdue: boolean;
   merchantName?: string | null;
   contractNumber?: string | null;
+  contractTitle?: string | null;
   allowedActions: string[];
   lease: Lease;
   depositBalance: string | null;
@@ -184,6 +185,7 @@ export interface Receipt {
   payload: { method: string; evidence: string; notes: string; actor: string };
   merchantName?: string | null;
   contractNumber?: string | null;
+  contractTitle?: string | null;
   allowedActions: string[];
   events?: AuditEvent[];
   eventsMeta?: Meta;

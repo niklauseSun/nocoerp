@@ -1,17 +1,16 @@
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch } from '#components/record-search';
 import { useState } from 'react';
 import { useTranslation } from '@nocobase/i18n/client';
 import { useBusinessQuery } from '../hyl/hooks.js';
 import {
   Group,
-  Choice,
-  Search,
   Paged,
   Values,
   Money,
   Day,
   State,
   BillingError,
-  LoadingRows,
   type Page,
 } from './common.js';
 export type LegacyCandidate = {
@@ -44,11 +43,10 @@ export function LegacyPicker({
 }: {
   contractId: string;
   disabled: boolean;
-  onSelect: (v: LegacyCandidate) => void;
+  onSelect: (v: LegacyCandidate | undefined) => void;
 }) {
   const { t } = useTranslation(),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
+    { q, setQ, page, setPage } = useRecordSearchState('legacy:' + contractId),
     [selected, setSelected] = useState<LegacyCandidate>(),
     r = useBusinessQuery<Page<LegacyCandidate>>(
       'energyLegacyMeters',
@@ -57,47 +55,45 @@ export function LegacyPicker({
     );
   return (
     <Group title={t('energy.legacyCandidates')}>
-      <Search
-        value={q}
-        onChange={(v) => {
+      <RecordSearch
+        label={t('energy.legacyCandidates')}
+        value={selected?.id || ''}
+        scopeKey={'legacy:' + contractId}
+        disabled={disabled || !contractId}
+        loading={r.isFetching}
+        options={(r.isPlaceholderData ? [] : r.data?.data || []).map((x) => ({
+          value: x.id,
+          label:
+            x.meterCode +
+            ' · ' +
+            t('energy.types.' + x.feeType) +
+            ' · ' +
+            x.start,
+        }))}
+        caption={selected?.meterCode}
+        onSearch={(v) => {
           setQ(v);
           setPage(1);
         }}
+        onChange={(id) => {
+          const candidate = r.data?.data.find((x) => x.id === id);
+          setSelected(candidate);
+          onSelect(candidate);
+        }}
         placeholder={t('energy.searchMeters')}
+        status={
+          !contractId ? (
+            <p>{t('energy.chooseContract')}</p>
+          ) : r.error ? (
+            <BillingError error={r.error} retry={() => void r.refetch()} />
+          ) : undefined
+        }
+        footer={
+          r.data && r.data.meta.total > 20 ? (
+            <Paged meta={r.data.meta} busy={r.isFetching} onChange={setPage} />
+          ) : undefined
+        }
       />
-      {!contractId ? (
-        <p>{t('energy.chooseContract')}</p>
-      ) : r.error ? (
-        <BillingError error={r.error} retry={() => void r.refetch()} />
-      ) : !r.data ? (
-        <LoadingRows />
-      ) : (
-        <>
-          <Choice
-            ariaLabel={t('energy.legacyCandidates')}
-            value={selected?.id ?? ''}
-            disabled={disabled}
-            onChange={(v) => {
-              const candidate = r.data?.data.find((x) => x.id === v);
-              if (candidate) {
-                setSelected(candidate);
-                onSelect(candidate);
-              }
-            }}
-            options={r.data.data.map((x) => ({
-              value: x.id,
-              label:
-                x.meterCode +
-                ' · ' +
-                t('energy.types.' + x.feeType) +
-                ' · ' +
-                x.start,
-            }))}
-          />
-          <Paged meta={r.data.meta} busy={r.isFetching} onChange={setPage} />
-          {!r.data.data.length ? <p>{t('energy.empty')}</p> : null}
-        </>
-      )}
       {selected ? (
         <>
           <Values

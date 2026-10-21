@@ -1194,3 +1194,137 @@ it('retains a dirty edit draft when a refreshed snapshot no longer contains the 
     false,
   );
 });
+
+const nestedRoster = {
+  ...snapshot.data,
+  departments: [
+    department,
+    { ...department, id: 'child', parentId: 'd', title: '子部门' },
+    { ...department, id: 'grandchild', parentId: 'child', title: '孙部门' },
+    { ...department, id: 'outside', title: '其他组织' },
+  ],
+  members: [
+    { id: 'm1', userId: 'u', departmentId: 'd', active: true, primary: true },
+    {
+      id: 'm2',
+      userId: 'u',
+      departmentId: 'child',
+      active: true,
+      primary: false,
+    },
+    {
+      id: 'm3',
+      userId: 'v',
+      departmentId: 'grandchild',
+      active: true,
+      primary: true,
+    },
+    {
+      id: 'm4',
+      userId: 'w',
+      departmentId: 'outside',
+      active: true,
+      primary: true,
+    },
+    {
+      id: 'm5',
+      userId: 'removed',
+      departmentId: 'child',
+      active: false,
+      primary: false,
+    },
+  ],
+  names: {
+    u: '跨部门员工',
+    v: '孙部门员工',
+    w: '外部员工',
+    removed: '已移除员工',
+  },
+  memberProfiles: {
+    u: { email: 'shared@example.test', disabledAt: null },
+    v: { email: 'grandchild@example.test', disabledAt: null },
+  },
+};
+function mockNestedRoster() {
+  api.request.mockImplementation(({ path, method }: any) =>
+    Promise.resolve(
+      method
+        ? { data: {} }
+        : path === 'organization'
+          ? { data: nestedRoster }
+          : options,
+    ),
+  );
+}
+it('counts distinct subtree employees and defaults to a deduplicated roster with direct-only filtering', async () => {
+  const user = userEvent.setup();
+  state.can = false;
+  mockNestedRoster();
+  mount(<Departments />, '/organization/departments?department=d');
+  const root = await screen.findByRole('link', { name: /演示部门/ });
+  expect(within(root).getByLabelText('2 名成员（含下级）')).toBeVisible();
+  let table = screen.getByRole('table', { name: '演示部门 · 员工列表' });
+  expect(within(table).getAllByText('跨部门员工')).toHaveLength(1);
+  expect(within(table).getByText('孙部门员工')).toBeVisible();
+  expect(within(table).getByText('子部门')).toBeVisible();
+  expect(within(table).getByText('孙部门')).toBeVisible();
+  expect(within(table).queryByText('外部员工')).toBeNull();
+  expect(within(table).queryByText('已移除员工')).toBeNull();
+  await user.click(screen.getByRole('switch', { name: '仅直属成员' }));
+  table = screen.getByRole('table', { name: '演示部门 · 员工列表' });
+  expect(within(table).getByText('跨部门员工')).toBeVisible();
+  expect(within(table).queryByText('孙部门员工')).toBeNull();
+  expect(within(root).getByLabelText('2 名成员（含下级）')).toBeVisible();
+  await user.click(screen.getByRole('switch', { name: '仅直属成员' }));
+  table = screen.getByRole('table', { name: '演示部门 · 员工列表' });
+  await user.type(
+    screen.getByPlaceholderText('按员工姓名或邮箱搜索'),
+    'grandchild@',
+  );
+  expect(within(table).getByText('孙部门员工')).toBeVisible();
+  await waitFor(() =>
+    expect(within(table).queryByText('跨部门员工')).toBeNull(),
+  );
+  expect(api.request.mock.calls.some(([r]) => r.method)).toBe(false);
+});
+it('targets the actual child membership when acting from a parent roster', async () => {
+  const user = userEvent.setup();
+  mockNestedRoster();
+  mount(<Departments />, '/organization/departments?department=d');
+  await user.click(
+    await screen.findByRole('button', { name: '跨部门员工的操作' }),
+  );
+  await user.click(
+    await screen.findByRole('menuitem', {
+      name: '设为主部门 · 子部门',
+      exact: true,
+    }),
+  );
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/departments/child/members',
+        method: 'PUT',
+        json: { userId: 'u', active: true, primary: true },
+      }),
+    ),
+  );
+  await user.click(screen.getByRole('button', { name: '跨部门员工的操作' }));
+  await user.click(
+    await screen.findByRole('menuitem', { name: '移除 · 子部门', exact: true }),
+  );
+  const dialog = screen.getByRole('alertdialog');
+  expect(within(dialog).getByRole('heading')).toHaveTextContent('子部门');
+  await user.click(
+    within(dialog).getByRole('button', { name: '移除', exact: true }),
+  );
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'organization/departments/child/members',
+        method: 'PUT',
+        json: { userId: 'u', active: false, primary: false },
+      }),
+    ),
+  );
+});

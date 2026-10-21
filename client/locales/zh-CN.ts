@@ -1,3 +1,4 @@
+import operationLogs from './operation-logs-zh-CN.js';
 import operations from './operations-zh-CN.js';
 import mobile from './mobile-zh-CN.js';
 import organization from './organization-zh-CN.js';
@@ -33,6 +34,7 @@ const zhCN: AppResource = {
   organization,
   mobile,
   operations,
+  operationLogs,
   assets,
   dashboard,
   lease,

@@ -135,3 +135,4 @@ When the built-in mechanism genuinely cannot express what is being asked, changi
 | [.agents/rules/inspections.md](.agents/rules/inspections.md)             | Inspections, security, cleaning plans, execution, issues, rechecks and repair linkage                        |
 | [.agents/rules/finance.md](.agents/rules/finance.md)                     | 财务报表、原始资金台账、应收应付、押金余额及跨模块核对                                                       |
 | [.agents/rules/tenant-operations.md](.agents/rules/tenant-operations.md) | 租户报送完整性、结算导出、欠费到期跟进、经营报表与外部流水对账                                               |
+| [.agents/rules/operation-logs.md](.agents/rules/operation-logs.md)       | 操作日志、管理员只读查询、业务与管理请求捕获及敏感数据过滤                                                   |

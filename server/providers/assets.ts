@@ -23,6 +23,7 @@ import {
   lockProjects,
   available,
   assetSummary,
+  createAssetBinding,
 } from '../assets/transactions.js';
 export async function assetPolicy(
   access: Access,
@@ -100,7 +101,16 @@ export class AssetService {
               ]),
             ]
           : []),
-        ...(input.type ? [f.string('type').eq(input.type)] : []),
+        ...(input.type
+          ? [
+              input.type === 'leaf'
+                ? f.or([
+                    f.string('type').eq('unit'),
+                    f.string('type').eq('stall'),
+                  ])
+                : f.string('type').eq(input.type),
+            ]
+          : []),
         ...(input.state ? [f.string('state').eq(input.state)] : []),
         ...(input.parentId !== undefined
           ? [
@@ -396,33 +406,7 @@ export class AssetService {
           fail('PROFILE_RETRY_CONFLICT', 'ALREADY_EXISTS');
         return previous;
       }
-      await available(c, fresh);
-      if (cents(values.area) > cents(fresh.lettableArea))
-        fail('ASSET_AREA', 'INVALID_ARGUMENT');
-      const all = await c
-        .repository<Binding>('hylAssetBindings')
-        // Occupancy is exclusive across all merchants, even outside this actor's read scope.
-        // The project lock above serializes competing allocations for the same asset.
-        .findMany({ filter: { assetId: asset.id } });
-      if (
-        all.some(
-          (b) =>
-            b.start <= (values.end || '9999-12-31') &&
-            (!b.end || b.end >= values.start),
-        )
-      )
-        fail('ASSET_BINDING_OVERLAP', 'ALREADY_EXISTS');
-      const row = {
-        ...values,
-        id: randomUUID(),
-        merchantId,
-        actor: access.actor,
-        version: 0,
-        createdAt: new Date().toISOString(),
-      };
-      await c.repository('hylAssetBindings').createOne({ values: row });
-      await audit(c, asset.id, access.actor, 'bind', '', null, row);
-      return row;
+      return createAssetBinding(c, fresh, merchantId, values, access.actor);
     });
   }
   async closeBinding(

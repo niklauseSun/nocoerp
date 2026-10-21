@@ -275,3 +275,115 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('searches a source bill in one input with merchant, contract and period and clears its preview', async () => {
+  const bill = {
+    id: 'bill-a',
+    number: 'ZD-001',
+    merchantName: '商户甲',
+    contractNumber: 'HT-001',
+    start: '2026-10-01',
+    end: '2026-10-31',
+    payload: { contract: { title: '十月租赁合同', number: 'HT-001' } },
+  };
+  api.request.mockImplementation(async (r) =>
+    r.path === 'invoiceSources/preview'
+      ? {
+          data: {
+            sourceHash: 'hash',
+            paidCents: '10000',
+            netIssuedCents: '0',
+            availableCents: '10000',
+            requiredRedCents: '0',
+          },
+        }
+      : { data: [bill], meta: { page: 1, pageSize: 20, total: 1 } },
+  );
+  mount(
+    <Backfill />,
+    '/invoicing/sources/backfill',
+    '/invoicing/sources/backfill',
+  );
+  const user = userEvent.setup(),
+    input = screen.getByRole('combobox', { name: '来源账单 *' });
+  expect(screen.getByPlaceholderText('搜索账单编号、商户或合同')).toBe(input);
+  await user.type(input, '十月');
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'bills',
+        query: expect.objectContaining({ q: '十月' }),
+      }),
+    ),
+  );
+  await user.click(
+    await screen.findByRole('option', {
+      name: 'ZD-001 · 商户甲 · 十月租赁合同 · HT-001 · 2026-10-01 – 2026-10-31',
+    }),
+  );
+  await user.type(screen.getByLabelText('原因 *'), '历史收款补建');
+  await user.click(screen.getByRole('button', { name: '预览', exact: true }));
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'invoiceSources/preview',
+        json: { billId: 'bill-a' },
+      }),
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: '补建开票任务', exact: true }),
+    ).toBeEnabled(),
+  );
+  await user.click(screen.getByRole('button', { name: '清空来源账单选择' }));
+  expect(input).toHaveValue('');
+  expect(input).toHaveFocus();
+  expect(
+    screen.getByRole('button', { name: '补建开票任务', exact: true }),
+  ).toBeDisabled();
+});
+
+it('keeps a selected source bill caption across pages while suppressing stale loading options', async () => {
+  let finish!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  api.request.mockImplementation(async (r) =>
+    r.query?.page === 2
+      ? pending
+      : {
+          data: [
+            {
+              id: 'a',
+              number: 'ZD-A',
+              merchantName: null,
+              contractNumber: 'HT-A',
+              payload: { contract: {} },
+            },
+          ],
+          meta: { page: 1, pageSize: 20, total: 21 },
+        },
+  );
+  mount(
+    <Backfill />,
+    '/invoicing/sources/backfill',
+    '/invoicing/sources/backfill',
+  );
+  const user = userEvent.setup(),
+    input = screen.getByRole('combobox', { name: '来源账单 *' });
+  await user.click(input);
+  await user.click(await screen.findByRole('option', { name: 'ZD-A · HT-A' }));
+  await user.click(input);
+  await user.click(screen.getByRole('button', { name: '下一页', exact: true }));
+  expect(screen.queryByRole('option', { name: 'ZD-A · HT-A' })).toBeNull();
+  expect(input).toHaveValue('ZD-A · HT-A');
+  finish({
+    data: [{ id: 'b', number: 'ZD-B', merchantName: '商户乙' }],
+    meta: { page: 2, pageSize: 20, total: 21 },
+  });
+  expect(
+    await screen.findByRole('option', { name: 'ZD-B · 商户乙' }),
+  ).toBeVisible();
+  expect(input).toHaveValue('ZD-A · HT-A');
+});

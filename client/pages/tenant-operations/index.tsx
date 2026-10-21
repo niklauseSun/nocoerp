@@ -168,22 +168,24 @@ function LegacyOperations() {
             />
           </div>
           {statuses[view]?.length ? (
-            <Choice
-              ariaLabel={t('operations.status')}
-              value={q.status || ''}
-              onChange={(v) => change({ status: v })}
-              options={[
-                { value: '', label: t('operations.allStatuses') },
-                ...statuses[view].map((s) => ({
-                  value: s,
-                  label: t(
-                    i18n.exists('operations.statuses.' + s)
-                      ? 'operations.statuses.' + s
-                      : 'hyl.states.' + s,
-                  ),
-                })),
-              ]}
-            />
+            <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+              <Choice
+                ariaLabel={t('operations.status')}
+                value={q.status || ''}
+                onChange={(v) => change({ status: v })}
+                options={[
+                  { value: '', label: t('operations.allStatuses') },
+                  ...statuses[view].map((s) => ({
+                    value: s,
+                    label: t(
+                      i18n.exists('operations.statuses.' + s)
+                        ? 'operations.statuses.' + s
+                        : 'hyl.states.' + s,
+                    ),
+                  })),
+                ]}
+              />
+            </div>
           ) : null}
           <Search
             value={q.q || ''}
@@ -208,15 +210,17 @@ function LegacyOperations() {
           ) : null}
         </div>
         {view === 'business' ? (
-          <Choice
-            value={q.group || 'daily'}
-            onChange={(v) => change({ group: v })}
-            ariaLabel={t('operations.group')}
-            options={['daily', 'merchant', 'channel', 'project'].map((g) => ({
-              value: g,
-              label: t('operations.groups.' + g),
-            }))}
-          />
+          <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+            <Choice
+              value={q.group || 'daily'}
+              onChange={(v) => change({ group: v })}
+              ariaLabel={t('operations.group')}
+              options={['daily', 'merchant', 'channel', 'project'].map((g) => ({
+                value: g,
+                label: t('operations.groups.' + g),
+              }))}
+            />
+          </div>
         ) : null}
         <p className='text-sm text-muted-foreground'>
           {t('operations.scope')} {t('operations.current')}{' '}

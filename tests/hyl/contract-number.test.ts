@@ -41,6 +41,7 @@ test('generates unique contract numbers and preserves generated and legacy ident
     account: '123',
   });
   const values = {
+    title: '合同名称搜索验收甲',
     merchantId: merchant.id,
     start: '2026-10-01',
     end: '2026-10-31',
@@ -60,6 +61,7 @@ test('generates unique contract numbers and preserves generated and legacy ident
     send('/contracts', {
       ...values,
       number: 'manual-number',
+      title: '',
       start: '2026-11-01',
       end: '2026-11-30',
     }),
@@ -68,6 +70,19 @@ test('generates unique contract numbers and preserves generated and legacy ident
   expect(second.number).toMatch(/^HT[0-9A-F]{24}$/);
   expect(first.number).not.toBe(second.number);
   expect(first.payload.number).toBe(first.number);
+  const search = async (q: string) => {
+    const response = await admin.fetch('/contracts?q=' + encodeURIComponent(q));
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { data: Row[] }).data;
+  };
+  expect((await search('合同名称搜索验收甲')).map((r) => r.id)).toEqual([
+    first.id,
+  ]);
+  expect((await search(first.number)).map((r) => r.id)).toEqual([first.id]);
+  expect((await search(merchant.name)).map((r) => r.id)).toEqual(
+    expect.arrayContaining([first.id, second.id]),
+  );
+
   const edited = await send(
     `/contracts/${first.id}`,
     {

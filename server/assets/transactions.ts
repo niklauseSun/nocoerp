@@ -1,8 +1,9 @@
+import { cents } from '../hyl/calculation.js';
 import type { JsonValue } from '@nocobase/db';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseConnection, RepositoryPolicy } from '@nocobase/db';
 import { fail } from '../hyl/service.js';
-import { assetFields, type Asset } from './schema.js';
+import { assetFields, isLeaf, type Asset, type Binding } from './schema.js';
 export async function getAsset(
   c: DatabaseConnection,
   id: string,
@@ -97,3 +98,41 @@ export function assetSummary(asset: Asset) {
   };
 }
 export { assetFields };
+
+/** Caller holds the merchant/project locks and has resolved asset write scope. */
+export async function createAssetBinding(
+  c: DatabaseConnection,
+  asset: Asset,
+  merchantId: string,
+  values: Pick<Binding, 'requestId' | 'assetId' | 'start' | 'end' | 'area'>,
+  actor: string,
+) {
+  if (!isLeaf(asset.type)) fail('ASSET_LEAF_REQUIRED', 'INVALID_ARGUMENT');
+  await available(c, asset);
+  if (cents(values.area) > cents(asset.lettableArea))
+    fail('ASSET_AREA', 'INVALID_ARGUMENT');
+  const all = await c
+    .repository<Binding>('hylAssetBindings')
+    // Occupancy is exclusive across all merchants, even outside this actor's read scope.
+    // The project lock above serializes competing allocations for the same asset.
+    .findMany({ filter: { assetId: asset.id } });
+  if (
+    all.some(
+      (b) =>
+        b.start <= (values.end || '9999-12-31') &&
+        (!b.end || b.end >= values.start),
+    )
+  )
+    fail('ASSET_BINDING_OVERLAP', 'ALREADY_EXISTS');
+  const row = {
+    ...values,
+    id: randomUUID(),
+    merchantId,
+    actor: actor,
+    version: 0,
+    createdAt: new Date().toISOString(),
+  };
+  await c.repository('hylAssetBindings').createOne({ values: row });
+  await audit(c, asset.id, actor, 'bind', '', null, row);
+  return row;
+}

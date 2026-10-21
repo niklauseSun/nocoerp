@@ -21,6 +21,7 @@ export async function previewBill(
   contract: Row,
   input: BillValues,
   except = '',
+  sourceSeed = '',
 ) {
   const [cycleStart, cycleEnd] = periodFor(input.month, input.part);
   const start =
@@ -244,7 +245,13 @@ export async function previewBill(
     ['water', 'electricity', 'gas'].includes(v),
   ))
     if (!lines.some((l) => l.feeType === fee)) fail('BILLING_METER_REQUIRED');
-  for (const other of input.others) {
+  // A persisted request seed makes generated fee identities stable across retries.
+  const seed = sourceSeed || except || randomUUID();
+  const others = input.others.map((other, i) => ({
+    ...other,
+    reference: other.reference || `FY-${seed}-${i + 1}`,
+  }));
+  for (const other of others) {
     if (
       (await c.repository('hylLeaseEntries').exists({
         filter: { contractId: contract.id, reference: other.reference },
@@ -287,6 +294,7 @@ export async function previewBill(
     start,
     end,
     lines,
+    others,
     amountCents: amount.toString(),
     total: money(amount),
     warnings: [...new Set(warnings)],

@@ -14,6 +14,7 @@ import {
 import { authorizationToken } from '@nocobase/app-plugin-authorization';
 import { userManagementServiceToken } from '@nocobase/app-plugin-users/server/tokens';
 import { definePermissionSet } from '@nocobase/authorization/permission-sets';
+import { resources } from '../../server/hyl/resources.js';
 import { assetResource } from '../../server/assets/resources.js';
 import { createStandaloneServer } from '../../server/standalone.js';
 import type { Asset } from '../../server/assets/schema.js';
@@ -596,4 +597,208 @@ test('record scope hides assets, files, history and unrelated identities; defaul
       path.endsWith('/assets/{id}/history'),
     ),
   ).toBe(true);
+});
+
+test('merchant selection atomically binds one unit and links an account without changing its roles', async ({
+  testApp,
+}) => {
+  const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS);
+  const send = async <T = Record<string, unknown>>(
+    path: string,
+    values: unknown,
+    status = 201,
+  ) => {
+    const response = await admin.fetch(path, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://localhost',
+      },
+      body: JSON.stringify(values),
+    });
+    const body = (await response.json()) as { data: T };
+    if (response.status !== status) throw Error(JSON.stringify(body));
+    expect(response.status).toBe(status);
+    return body.data;
+  };
+  const project = await send<Asset>('/assets', {
+    name: '单铺绑定项目',
+    type: 'project',
+  });
+  const street = await send<Asset>('/assets', {
+    name: '街区',
+    type: 'street',
+    parentId: project.id,
+  });
+  const unit = await send<Asset>('/assets', {
+    name: '铺位A',
+    type: 'unit',
+    parentId: street.id,
+    area: '20',
+    lettableArea: '20',
+  });
+  const stall = await send<Asset>('/assets', {
+    name: '摊位B',
+    type: 'stall',
+    parentId: street.id,
+    area: '2',
+    lettableArea: '2',
+  });
+  const users = testApp.application.container.resolve(
+    userManagementServiceToken,
+  );
+  const account = await users.create({
+    name: '仅关联账号',
+    email: 'linked-only@example.test',
+    password: 'password123',
+  });
+  const rolesBefore = (
+    await users.list({ q: 'linked-only@example.test', page: 1, pageSize: 20 })
+  ).items.find((u) => u.id === account.id)!.roleScopes;
+  const withoutUnit = await send<Row>('/merchants', {
+    name: '暂不选择铺位',
+    contact: '测试',
+    phone: '0',
+    accountName: '模拟',
+    bank: '模拟',
+    account: '0',
+    unit: '',
+    assetId: '',
+    userId: '',
+  });
+  expect(withoutUnit.payload.unit).toBe('');
+  const emptyBindings = await admin.fetch(
+    `/merchants/${withoutUnit.id}/assets`,
+  );
+  expect(
+    ((await emptyBindings.json()) as { data: unknown[] }).data,
+  ).toHaveLength(0);
+  const creationId = randomUUID();
+  const values = {
+    creationId,
+    name: '选择铺位商户',
+    assetId: unit.id,
+    bindingStart: '2026-10-21',
+    bindingEnd: '',
+    contact: '测试',
+    phone: '0',
+    accountName: '模拟',
+    bank: '模拟',
+    account: '0',
+    userId: account.id,
+  };
+  const merchant = await send<Row>('/merchants', values);
+  expect(merchant.payload.unit).toBe(unit.name);
+  expect(merchant.userId).toBe(account.id);
+  expect((await send<Row>('/merchants', values)).id).toBe(merchant.id);
+  const bindingsResponse = await admin.fetch(
+    `/merchants/${merchant.id}/assets`,
+  );
+  const bindings = (
+    (await bindingsResponse.json()) as { data: { assetId: string }[] }
+  ).data;
+  expect(bindings).toHaveLength(1);
+  expect(bindings[0].assetId).toBe(unit.id);
+  expect(
+    (
+      await users.list({ q: 'linked-only@example.test', page: 1, pageSize: 20 })
+    ).items.find((u) => u.id === account.id)!.roleScopes,
+  ).toEqual(rolesBefore);
+  const { creationId: ignoredCreation, ...editValues } = values;
+  void ignoredCreation;
+  const edited = await admin.fetch(`/merchants/${merchant.id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    body: JSON.stringify({
+      values: { ...editValues, name: '已编辑商户' },
+      expectedVersion: merchant.version,
+    }),
+  });
+  if (edited.status !== 200) throw Error(await edited.text());
+  expect(edited.status).toBe(200);
+  const editedMerchant = ((await edited.json()) as { data: Row }).data;
+  const cleared = await admin.fetch(`/merchants/${merchant.id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    body: JSON.stringify({
+      values: {
+        ...editValues,
+        unit: '',
+        assetId: '',
+        bindingStart: '',
+        bindingEnd: '',
+        userId: '',
+      },
+      expectedVersion: editedMerchant.version,
+    }),
+  });
+  expect(cleared.status).toBe(200);
+  const retained = await admin.fetch(`/merchants/${merchant.id}/assets`);
+  expect(((await retained.json()) as { data: unknown[] }).data).toHaveLength(1);
+
+  const conflictingId = randomUUID();
+  await send(
+    '/merchants',
+    { ...values, creationId: conflictingId, name: '冲突商户' },
+    409,
+  );
+  expect((await admin.fetch(`/merchants/${conflictingId}`)).status).toBe(404);
+  await send(
+    '/merchants',
+    { ...values, creationId: randomUUID(), assetId: [unit.id, stall.id] },
+    400,
+  );
+  await send(
+    '/merchants',
+    { ...values, creationId: randomUUID(), assetId: project.id },
+    400,
+  );
+  const authz = testApp.application.container.resolve(authorizationToken);
+  await authz.permissionSets.create(
+    definePermissionSet('merchant-picker-writer')
+      .grant(
+        resources.merchants.reference().grant({
+          read: { records: 'allRecords' },
+          write: { records: 'allRecords' },
+        }),
+      )
+      .build(),
+  );
+  await authz.permissionSets.assign({
+    permissionSet: 'merchant-picker-writer',
+    subject: { type: 'user', id: account.id },
+  });
+  const writer = await signIn(testApp, {
+    email: 'linked-only@example.test',
+    password: 'password123',
+  });
+  const denied = await writer.fetch('/merchants', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    body: JSON.stringify({
+      ...values,
+      creationId: randomUUID(),
+      assetId: stall.id,
+      userId: '',
+    }),
+  });
+  expect(denied.status).toBe(403);
+  const hiddenUser = await writer.fetch('/merchants', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost' },
+    body: JSON.stringify({
+      ...values,
+      creationId: randomUUID(),
+      assetId: '',
+      unit: '旧文字铺位',
+    }),
+  });
+  expect(hiddenUser.status).toBe(403);
+  const leaves = await admin.fetch('/assets?type=leaf&pageSize=200');
+  expect(leaves.status).toBe(200);
+  const page = (await leaves.json()) as { data: Asset[] };
+  expect(page.data.map((a) => a.id)).toEqual(
+    expect.arrayContaining([unit.id, stall.id]),
+  );
+  expect(page.data.every((a) => ['unit', 'stall'].includes(a.type))).toBe(true);
 });

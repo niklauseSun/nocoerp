@@ -20,7 +20,21 @@ const { api, permission, toaster } = vi.hoisted(() => ({
 }));
 vi.mock('@nocobase/app-client', async (original) => ({
   ...(await original<typeof import('@nocobase/app-client')>()),
-  useApiClient: () => api,
+  useApiClient: () => ({
+    request: (args: { path: string }) =>
+      args.path === 'users'
+        ? Promise.resolve({ data: [], meta: { total: 0 } })
+        : args.path === 'assets'
+          ? Promise.resolve({
+              data: [{ id: 'asset1', name: 'A1', number: 'ZC001' }],
+              meta: { total: 1 },
+            })
+          : args.path === 'assets/asset1'
+            ? Promise.resolve({
+                data: { id: 'asset1', name: 'A1', number: 'ZC001' },
+              })
+            : api.request(args),
+  }),
   useNavigationGuard: vi.fn(),
   useService: () => ({ repository: () => ({}) }),
   useToaster: () => toaster,
@@ -422,7 +436,18 @@ it('preserves an upload result after the widget unmounts during its request', as
 });
 
 it('creates a merchant without asking for or submitting a merchant number', async () => {
-  api.request.mockResolvedValue({ data: { id: 'generated', number: 'SH123' } });
+  api.request.mockImplementation(async ({ path, method }) =>
+    method === 'POST'
+      ? { data: { id: 'generated', number: 'SH123' } }
+      : path === 'assets/asset1'
+        ? { data: { id: 'asset1', name: 'A1', number: 'ZC001' } }
+        : path === 'assets'
+          ? {
+              data: [{ id: 'asset1', name: 'A1', number: 'ZC001' }],
+              meta: { total: 1 },
+            }
+          : { data: [], meta: { total: 0 } },
+  );
   mount(<BusinessForm />, '/merchants/new');
   await waitFor(() =>
     expect(screen.getByRole('button', { name: '创建' })).toBeEnabled(),
@@ -431,7 +456,6 @@ it('creates a merchant without asking for or submitting a merchant number', asyn
   expect(screen.getByText('商户编号将在保存时自动生成。')).toBeInTheDocument();
   for (const [label, value] of [
     ['商户名称', '自动编号商户'],
-    ['铺位', 'A1'],
     ['联系人', '张三'],
     ['联系电话', '123'],
     ['收款户名', '张三'],
@@ -439,6 +463,10 @@ it('creates a merchant without asking for or submitting a merchant number', asyn
     ['收款账号', '123'],
   ])
     await userEvent.type(screen.getByLabelText(`${label} *`), value);
+  await userEvent.type(screen.getByRole('combobox', { name: '铺位' }), 'A1');
+  await userEvent.click(
+    await screen.findByRole('option', { name: 'A1 · ZC001' }),
+  );
   await userEvent.click(screen.getByRole('button', { name: '创建' }));
   await waitFor(() =>
     expect(api.request).toHaveBeenCalledWith(
@@ -487,7 +515,6 @@ it('offers business categories and requires a name only when other is selected',
   expect(screen.queryByLabelText('其他品类名称 *')).not.toBeInTheDocument();
   for (const [label, value] of [
     ['商户名称', '品类测试'],
-    ['铺位', 'A1'],
     ['联系人', '张三'],
     ['联系电话', '123'],
     ['收款户名', '张三'],
@@ -495,6 +522,10 @@ it('offers business categories and requires a name only when other is selected',
     ['收款账号', '123'],
   ])
     await userEvent.type(screen.getByLabelText(`${label} *`), value);
+  await userEvent.type(screen.getByRole('combobox', { name: '铺位' }), 'A1');
+  await userEvent.click(
+    await screen.findByRole('option', { name: 'A1 · ZC001' }),
+  );
   await userEvent.click(screen.getByRole('button', { name: '创建' }));
   await waitFor(() =>
     expect(api.request).toHaveBeenCalledWith(
@@ -541,7 +572,6 @@ it('uploads a business license before atomically submitting it and safely retrie
   );
   for (const [label, value] of [
     ['商户名称', '上传测试'],
-    ['铺位', 'A1'],
     ['联系人', '张三'],
     ['联系电话', '123'],
     ['收款户名', '张三'],
@@ -549,6 +579,10 @@ it('uploads a business license before atomically submitting it and safely retrie
     ['收款账号', '123'],
   ])
     await userEvent.type(screen.getByLabelText(`${label} *`), value);
+  await userEvent.type(screen.getByRole('combobox', { name: '铺位' }), 'A1');
+  await userEvent.click(
+    await screen.findByRole('option', { name: 'A1 · ZC001' }),
+  );
   const input =
     view.container.querySelector<HTMLInputElement>('input[type=file]')!;
   await userEvent.upload(

@@ -1,3 +1,5 @@
+import { assignedContractLabel } from '../hyl/contract-label.js';
+import { RecordSearch } from '#components/record-search';
 import { useBusinessIdentity } from '../hyl/hooks.js';
 import { LegacyPicker } from './legacy-picker.js';
 import { scalar, kindFrom, useEnergyCan } from './helpers.js';
@@ -38,7 +40,6 @@ import {
   LoadingRows,
   BillingError,
   Paged,
-  Search,
   Day,
   Quantity,
 } from './common.js';
@@ -387,6 +388,18 @@ function Editor({
       setSelected([]);
       setSourcePage(1);
       setRequiresZero(false);
+      if (mode === 'adopt')
+        Object.assign(next, {
+          assetId: '',
+          assetName: '',
+          meterCode: '',
+          feeType: 'water',
+          start: '',
+          openingReading: '0',
+          multiplier: '1',
+          name: '',
+          legacyDraftCount: '0',
+        });
     }
     if (k === 'meterId') {
       next.assignmentId = '';
@@ -766,53 +779,80 @@ function Editor({
         <>
           <Group title={t('energy.basic')}>
             {picker('meterId', 'energyMeters')}
-            <Search
-              value={assignmentSearch}
-              onChange={(v) => {
-                setAssignmentSearch(v);
-                setAssignmentPage(1);
-              }}
-              placeholder={t('energy.searchAssignment')}
-            />
-            {assignments.error ? (
-              <BillingError error={assignments.error} />
-            ) : (
-              <Choice
-                ariaLabel={t('energy.fields.assignmentId')}
-                value={values.assignmentId}
-                disabled={disabled || mode !== 'newReading'}
-                onChange={(v) => {
-                  update('assignmentId', v);
-                  setValues((old) => ({
-                    ...old,
-                    assignmentCaption: v
-                      ? ((assignments.data?.data.find((a) => a.id === v)
-                          ?.payload.contractNumber as string) ?? '')
-                      : t('energy.publicMeter'),
-                  }));
-                }}
-                options={[
-                  { value: '', label: t('energy.publicMeter') },
-                  ...(assignments.data?.data ?? []).map((a) => ({
-                    value: a.id,
-                    label: [a.number, a.contractNumber, a.start, a.end]
-                      .map(scalar)
-                      .join(' · '),
-                  })),
-                ]}
-              />
-            )}
+            <Field>
+              <FieldLabel htmlFor='energy-reading-assignment'>
+                {t('energy.optionalAssignment')}
+              </FieldLabel>
+              {assignments.error ? (
+                <BillingError error={assignments.error} />
+              ) : (
+                <RecordSearch
+                  placeholder={t('energy.searchAssignedContract')}
+                  id='energy-reading-assignment'
+                  label={t('energy.optionalAssignment')}
+                  scopeKey={
+                    'meter-assignments:' + (values.meterId || initial?.id || '')
+                  }
+                  loading={assignments.isFetching}
+                  caption={values.assignmentCaption}
+                  onSearch={(v) => {
+                    setAssignmentSearch(v);
+                    setAssignmentPage(1);
+                  }}
+                  footer={
+                    assignments.data && assignments.data.meta.total > 20 ? (
+                      <Paged
+                        meta={assignments.data.meta}
+                        busy={assignments.isFetching}
+                        onChange={setAssignmentPage}
+                      />
+                    ) : undefined
+                  }
+                  value={values.assignmentId}
+                  disabled={disabled || mode !== 'newReading'}
+                  onChange={(v) => {
+                    update('assignmentId', v);
+                    setValues((old) => ({
+                      ...old,
+                      readingId: '',
+                      readingCaption: '',
+                      assignmentCaption: v
+                        ? assignedContractLabel(
+                            assignments.data?.data.find((a) => a.id === v) ??
+                              {},
+                          )
+                        : t('energy.publicMeter'),
+                    }));
+                  }}
+                  options={[
+                    { value: '', label: t('energy.publicMeter') },
+                    ...(assignments.data?.data ?? []).map((a) => ({
+                      value: a.id,
+                      label: [assignedContractLabel(a), a.start, a.end]
+                        .map(scalar)
+                        .join(' · '),
+                    })),
+                  ]}
+                />
+              )}
+              <p className='text-sm text-muted-foreground'>
+                {t('energy.optionalAssignmentHelp')}
+              </p>
+              {values.meterId &&
+              !assignmentSearch &&
+              !assignments.isFetching &&
+              !assignments.isPlaceholderData &&
+              !assignments.error &&
+              assignments.data?.meta.total === 0 ? (
+                <p className='text-sm text-muted-foreground'>
+                  {t('energy.noAssignedContracts')}
+                </p>
+              ) : null}
+            </Field>
             {values.assignmentCaption ? (
               <p className='text-sm text-muted-foreground'>
                 {values.assignmentCaption}
               </p>
-            ) : null}
-            {assignments.data ? (
-              <Paged
-                meta={assignments.data.meta}
-                busy={assignments.isFetching}
-                onChange={setAssignmentPage}
-              />
             ) : null}
             <Values
               values={{
@@ -845,26 +885,39 @@ function Editor({
       {mode === 'handover' ? (
         <>
           <Group title={t('energy.assignments')}>
-            <Search
-              value={assignmentSearch}
-              onChange={(v) => {
+            <RecordSearch
+              id='cashier-assignmentId'
+              label={t('energy.fields.assignmentId')}
+              scopeKey={
+                'meter-assignments:' + (values.meterId || initial?.id || '')
+              }
+              loading={assignments.isFetching}
+              caption={values.assignmentCaption}
+              onSearch={(v) => {
                 setAssignmentSearch(v);
                 setAssignmentPage(1);
               }}
-              placeholder={t('energy.searchAssignment')}
-            />
-            <Choice
-              id='cashier-assignmentId'
-              ariaLabel={t('energy.fields.assignmentId')}
+              footer={
+                assignments.data && assignments.data.meta.total > 20 ? (
+                  <Paged
+                    meta={assignments.data.meta}
+                    busy={assignments.isFetching}
+                    onChange={setAssignmentPage}
+                  />
+                ) : undefined
+              }
               value={values.assignmentId}
               disabled={disabled}
               onChange={(v) => {
                 update('assignmentId', v);
                 setValues((old) => ({
                   ...old,
+                  readingId: '',
+                  readingCaption: '',
                   assignmentCaption: v
-                    ? ((assignments.data?.data.find((a) => a.id === v)?.payload
-                        .contractNumber as string) ?? '')
+                    ? assignedContractLabel(
+                        assignments.data?.data.find((a) => a.id === v) ?? {},
+                      )
                     : t('energy.publicMeter'),
                 }));
               }}
@@ -872,7 +925,9 @@ function Editor({
                 .filter((a) => !a.end)
                 .map((a) => ({
                   value: a.id,
-                  label: scalar(a.contractNumber) + ' · ' + a.start,
+                  label: [assignedContractLabel(a), a.start]
+                    .filter(Boolean)
+                    .join(' · '),
                 }))}
             />
             {values.assignmentCaption ? (
@@ -880,31 +935,33 @@ function Editor({
                 {values.assignmentCaption}
               </p>
             ) : null}
-            {assignments.data ? (
-              <Paged
-                meta={assignments.data.meta}
-                busy={assignments.isFetching}
-                onChange={setAssignmentPage}
-              />
-            ) : null}
             {w.errors.assignmentId ? (
               <p className='text-destructive'>{w.errors.assignmentId}</p>
             ) : null}
             {date('end')}
-            <Search
-              value={handoverSearch}
-              onChange={(v) => {
-                setHandoverSearch(v);
-                setHandoverPage(1);
-              }}
-              placeholder={t('energy.searchFinalReading')}
-            />
             <Field>
               <FieldLabel htmlFor='cashier-readingId'>
                 {t('energy.fields.readingId')} *
               </FieldLabel>
-              <Choice
+              <RecordSearch
                 id='cashier-readingId'
+                label={t('energy.fields.readingId')}
+                scopeKey={'final-readings:' + values.assignmentId}
+                loading={handoverReadings.isFetching}
+                onSearch={(v) => {
+                  setHandoverSearch(v);
+                  setHandoverPage(1);
+                }}
+                footer={
+                  handoverReadings.data &&
+                  handoverReadings.data.meta.total > 20 ? (
+                    <Paged
+                      meta={handoverReadings.data.meta}
+                      busy={handoverReadings.isFetching}
+                      onChange={setHandoverPage}
+                    />
+                  ) : undefined
+                }
                 value={values.readingId}
                 disabled={disabled}
                 onChange={(v) => {
@@ -921,7 +978,7 @@ function Editor({
                         ' · ' +
                         scalar(chosen.current)
                       : '',
-                    end: chosen?.end ?? old.end,
+                    end: chosen?.end ?? '',
                   }));
                 }}
                 options={(handoverReadings.data?.data ?? [])
@@ -945,13 +1002,6 @@ function Editor({
                 {values.readingCaption}
               </p>
             ) : null}
-            {handoverReadings.data ? (
-              <Paged
-                meta={handoverReadings.data.meta}
-                busy={handoverReadings.isFetching}
-                onChange={setHandoverPage}
-              />
-            ) : null}
             {field('evidence', false, true)}
           </Group>
           <Group title={t('energy.nextAssignment')}>
@@ -972,15 +1022,15 @@ function Editor({
             onSelect={(candidate) => {
               setValues((old) => ({
                 ...old,
-                assetId: candidate.assetId,
-                assetName: candidate.assetName,
-                meterCode: candidate.meterCode,
-                feeType: candidate.feeType,
-                start: candidate.start,
-                openingReading: candidate.openingReading,
-                multiplier: candidate.multiplier,
-                name: candidate.meterCode,
-                legacyDraftCount: String(candidate.draftCount),
+                assetId: candidate?.assetId || '',
+                assetName: candidate?.assetName || '',
+                meterCode: candidate?.meterCode || '',
+                feeType: candidate?.feeType || 'water',
+                start: candidate?.start || '',
+                openingReading: candidate?.openingReading || '0',
+                multiplier: candidate?.multiplier || '1',
+                name: candidate?.meterCode || '',
+                legacyDraftCount: String(candidate?.draftCount || 0),
               }));
               setDirty(true);
               setPreview(undefined);

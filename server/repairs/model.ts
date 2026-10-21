@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { defineLifecycle, type LifecycleTypes } from '@nocobase/lifecycle';
 import { date, amount } from '../hyl/schema.js';
+const images = z
+  .array(z.uuid())
+  .max(9)
+  .refine((ids) => new Set(ids).size === ids.length);
 const text = (n: number) => z.string().trim().min(1).max(n);
 export const states = [
   'reported',
@@ -21,6 +25,7 @@ export const categories = [
 export const priorities = ['low', 'normal', 'high', 'urgent'] as const;
 export const fields = z
   .object({
+    reportPhotoIds: images.optional(),
     title: text(100),
     description: text(4000),
     category: z.enum(categories),
@@ -51,7 +56,16 @@ export const actionValues = z.discriminatedUnion('action', [
   ...(
     ['start', 'progress', 'accept', 'reject', 'close', 'cancel'] as const
   ).map((action) =>
-    z.object({ ...op, action: z.literal(action), note: text(2000) }).strict(),
+    z
+      .object({
+        ...op,
+        action: z.literal(action),
+        note: text(2000),
+        ...(['progress', 'accept', 'reject'].includes(action)
+          ? { photoIds: images.optional() }
+          : {}),
+      })
+      .strict(),
   ),
   z
     .object({
@@ -60,6 +74,7 @@ export const actionValues = z.discriminatedUnion('action', [
       note: text(4000),
       evidence: text(2000),
       cost: amount,
+      photoIds: images.optional(),
     })
     .strict(),
 ]);

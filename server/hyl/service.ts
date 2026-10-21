@@ -3,8 +3,12 @@ import {
   contractRule,
   refuse as approvalRefuse,
 } from '../approvals/gate.js';
-import { getAsset } from '../assets/transactions.js';
-import { isLeaf } from '../assets/schema.js';
+import {
+  getAsset,
+  lockProjects,
+  createAssetBinding,
+} from '../assets/transactions.js';
+import { isLeaf, type Asset, bindingSchema } from '../assets/schema.js';
 import { assertCashReference } from '../billing/accounting.js';
 import { syncContract } from '../profit-sharing/projection.js';
 import { checkExpense, configAt } from '../billing/accounting.js';
@@ -113,7 +117,30 @@ export class HylService {
     const repo = this.db.repository<Row>(tables[kind]).withPolicy(policy);
     if (kind === 'contracts')
       return listLeases(this.db, policy, input, this, access);
-    const filter = businessFilter(kind, input);
+    let filter = businessFilter(kind, input);
+    if (kind === 'settlements' && input.q) {
+      // Search the signed source snapshot within the caller's existing settlement scope.
+      const base = businessFilter(kind, { ...input, q: '' });
+      const query = input.q.toLocaleLowerCase();
+      const matches = (await repo.findMany({ filter: base })).filter((row) => {
+        const contract = row.payload?.contract as
+          Record<string, unknown> | undefined;
+        return [
+          scalar(row.number),
+          scalar(row.name),
+          scalar(contract?.title),
+          scalar(contract?.number),
+        ].some((value) => value.toLocaleLowerCase().includes(query));
+      });
+      filter = buildFilter((f) =>
+        f.and([
+          base.root,
+          matches.length
+            ? f.or(matches.map((row) => f.string('id').eq(scalar(row.id))))
+            : f.string('id').eq('__no_source_match__'),
+        ]),
+      );
+    }
     const [column = 'updatedAt', direction = 'desc'] = input.orderBy.split(':');
     if (
       !['updatedAt', 'date', 'amountCents'].includes(column) ||
@@ -402,6 +429,13 @@ export class HylService {
     delete payload.licenseFileId;
     if (kind === 'merchants') {
       delete payload.code;
+      delete payload.userName;
+      // Preserve the retry intent of legacy creates that carry only a unit label.
+      if (!payload.assetId) {
+        delete payload.assetId;
+        delete payload.bindingStart;
+        delete payload.bindingEnd;
+      }
       if (payload.category !== 'other') payload.categoryName = '';
     }
     const requestHash = createHash('sha256')
@@ -409,10 +443,15 @@ export class HylService {
       .digest('hex');
     const policy = await this.policy(access, kind, 'write');
     const assetAccess =
-      kind === 'contracts' &&
-      (id || (Array.isArray(payload.assetIds) && payload.assetIds.length))
+      ((kind === 'merchants' && !!payload.assetId) || kind === 'contracts') &&
+      (payload.assetId ||
+        id ||
+        (Array.isArray(payload.assetIds) && payload.assetIds.length))
         ? await assetPolicy(access, 'write').catch((cause) => {
-            if (Array.isArray(payload.assetIds) && payload.assetIds.length)
+            if (
+              payload.assetId ||
+              (Array.isArray(payload.assetIds) && payload.assetIds.length)
+            )
               throw cause;
             return undefined;
           })
@@ -421,6 +460,31 @@ export class HylService {
       kind === 'merchants'
         ? undefined
         : await this.policy(access, 'merchants', 'read');
+    const previousUser =
+      kind === 'merchants' && id && payload.userId
+        ? (
+            await this.get(
+              access,
+              kind,
+              id,
+              'write',
+              this.db.connection(),
+              policy,
+            )
+          ).userId
+        : '';
+    const linkingUser =
+      kind === 'merchants' &&
+      !!payload.userId &&
+      payload.userId !== previousUser;
+    if (linkingUser) {
+      const decision = await access.authorization.authorize({
+        resource: { type: 'user', id: scalar(payload.userId) },
+        action: 'read',
+      });
+      if (decision.effect === 'deny')
+        fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+    }
     return this.db.transaction(async (c) => {
       if (creationId) {
         const previous = await c
@@ -466,11 +530,39 @@ export class HylService {
         await this.lockMerchant(c, merchant.id);
         if (merchant.status !== 'active') fail('MERCHANT_INACTIVE');
       }
+      if (kind === 'merchants' && !payload.userId) payload.userName = '';
+      let chosenAsset: Asset | undefined;
+      const newBinding =
+        kind === 'merchants' &&
+        payload.assetId &&
+        (payload.assetId !== old?.payload.assetId ||
+          payload.bindingStart !== old?.payload.bindingStart ||
+          payload.bindingEnd !== old?.payload.bindingEnd);
+      if (kind === 'merchants' && payload.assetId) {
+        if (!assetAccess) fail('ACCESS_DENIED', 'PERMISSION_DENIED');
+        if (id && old) {
+          const lock = await c.repository('hylMerchants').updateMany({
+            filter: { id, version: old.version },
+            values: { version: old.version },
+          });
+          if (lock.updatedCount !== 1) fail('VERSION_CONFLICT', 'ABORTED');
+        }
+        const asset = await getAsset(c, scalar(payload.assetId), assetAccess);
+        await lockProjects(c, [asset.projectId]);
+        chosenAsset = await getAsset(c, asset.id, assetAccess);
+        if (chosenAsset.projectId !== asset.projectId)
+          fail('VERSION_CONFLICT', 'ABORTED');
+        if (!isLeaf(chosenAsset.type))
+          fail('ASSET_LEAF_REQUIRED', 'INVALID_ARGUMENT');
+        payload.unit = chosenAsset.name;
+      }
       if (kind === 'merchants' && payload.userId) {
         const user = await this.users
           .withConnection(c)
           .get(scalar(payload.userId));
-        if (!user) fail('USER_NOT_FOUND', 'INVALID_ARGUMENT');
+        if (user) payload.userName = user.name;
+        if (!user || (linkingUser && user.disabledAt))
+          fail('USER_NOT_FOUND', 'INVALID_ARGUMENT');
       }
       if (kind === 'contracts') {
         if (id) await approvalEditable(c, 'contracts', id);
@@ -654,6 +746,20 @@ export class HylService {
           result = await this.get(access, kind, result.id, 'read', c, policy);
         }
       } else result = (await repo.createOne({ values })).record as Row;
+      if (chosenAsset && newBinding)
+        await createAssetBinding(
+          c,
+          chosenAsset,
+          result.id,
+          bindingSchema.parse({
+            requestId: creationId || randomUUID(),
+            assetId: chosenAsset.id,
+            start: payload.bindingStart,
+            end: payload.bindingEnd,
+            area: chosenAsset.lettableArea,
+          }),
+          access.actor,
+        );
       if (kind === 'contracts') {
         result = await this.get(access, kind, result.id, 'read', c, policy);
         if (result.status === 'draft' && Array.isArray(payload.assetIds)) {

@@ -1,3 +1,4 @@
+import { linkPhotos, readPhotos, photoIds } from './photos.js';
 import { procurementRepairBlock } from '../procurement/repair-guard.js';
 import { randomUUID, createHash } from 'node:crypto';
 import { ApiError } from '@nocobase/app-server/router';
@@ -28,7 +29,10 @@ export const repairToday = () =>
 const s = (v: unknown) => (typeof v === 'string' ? v : '');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as JsonValue;
 export class RepairService {
-  constructor(readonly hyl: HylService) {}
+  constructor(
+    readonly hyl: HylService,
+    readonly basePath = '',
+  ) {}
   c() {
     return this.hyl.db.connection();
   }
@@ -271,6 +275,14 @@ export class RepairService {
       createdAt: at,
       updatedAt: at,
     };
+    await linkPhotos(
+      c,
+      values.reportPhotoIds ?? [],
+      access.actor,
+      asset.id,
+      id,
+      'report',
+    );
     await this.hyl.runtime.create('hylRepairOrders', record, {
       actor: { id: access.actor },
       transaction: c,
@@ -324,6 +336,15 @@ export class RepairService {
             category: input.values.category,
             priority: input.values.priority,
           };
+          if (input.values.reportPhotoIds !== undefined)
+            await linkPhotos(
+              c,
+              input.values.reportPhotoIds,
+              access.actor,
+              r.assetId,
+              r.id,
+              'report',
+            );
           Object.assign(payload, input.values);
         }
         if (input.action === 'assign' || input.action === 'reassign') {
@@ -335,6 +356,17 @@ export class RepairService {
           if (input.dueOn < r.occurredOn) fail('REPAIR_DUE_INVALID');
           patch = { assigneeId: user.id, dueOn: input.dueOn };
           payload.assigneeName = user.name;
+        }
+        if (
+          ['progress', 'complete', 'accept', 'reject'].includes(input.action)
+        ) {
+          const ids = photoIds('photoIds' in input ? input.photoIds : []);
+          const stage = ['accept', 'reject'].includes(input.action)
+            ? 'acceptance'
+            : 'processing';
+          await linkPhotos(c, ids, access.actor, r.assetId, r.id, stage);
+          const key = stage + 'PhotoIds';
+          payload[key] = [...new Set([...photoIds(payload[key]), ...ids])];
         }
         if (input.action === 'complete') {
           patch.costCents = String(cents(input.cost));
@@ -466,10 +498,46 @@ export class RepairService {
           return event;
         }),
     );
+    const photos = {
+      report: await readPhotos(
+        this.c(),
+        id,
+        photoIds(r.payload.reportPhotoIds),
+        this.basePath,
+      ),
+      processing: await readPhotos(
+        this.c(),
+        id,
+        photoIds(r.payload.processingPhotoIds),
+        this.basePath,
+      ),
+      acceptance: await readPhotos(
+        this.c(),
+        id,
+        photoIds(r.payload.acceptancePhotoIds),
+        this.basePath,
+      ),
+    };
+    const photoEvents = await Promise.all(
+      events.map(async (event) => ({
+        ...event,
+        photos: await readPhotos(
+          this.c(),
+          id,
+          photoIds(
+            event.payload.photoIds ??
+              (event.payload.values as Record<string, unknown> | undefined)
+                ?.reportPhotoIds,
+          ),
+          this.basePath,
+        ),
+      })),
+    );
     return {
       ...(await this.view(access, r)),
+      photos,
       events: {
-        data: events,
+        data: photoEvents,
         meta: {
           page: eventPage,
           pageSize: 20,

@@ -16,6 +16,7 @@ import { MemoryRouter, Routes, Route, Outlet } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import zh from '../../client/locales/zh-CN.js';
+import BillingForm from '../../client/pages/billing/form.js';
 import BillingAction from '../../client/pages/billing/action.js';
 import BillingDetail from '../../client/pages/billing/detail.js';
 import { BillingContractCard } from '../../client/pages/billing/contract-card.js';
@@ -70,6 +71,7 @@ function mount(element: React.ReactNode, path = '/billing/receipts/new') {
               <Route path='new' element={element} />
               <Route path=':receiptId/allocate' element={element} />
             </Route>
+            <Route path='/billing/bills/new' element={element} />
             <Route path='/billing/bills/:billId' element={<BillingDetail />}>
               <Route
                 path='receiptDetail/:receiptId'
@@ -127,7 +129,7 @@ it('validates receipt registration and retries uncertain failures using the same
     api.request.mock.calls.filter(([r]) => r.method === 'POST'),
   ).toHaveLength(0);
   await user.type(screen.getByLabelText('金额 *'), '800');
-  await user.type(screen.getByLabelText('外部流水 *'), 'DEMO-R');
+  await user.type(screen.getByLabelText('支付流水号 *'), 'DEMO-R');
   await user.type(screen.getByLabelText('凭证 *'), '线下演示凭证');
   const failure = new ApiClientError('Failed', {
     status: 500,
@@ -137,7 +139,7 @@ it('validates receipt registration and retries uncertain failures using the same
   api.request.mockRejectedValueOnce(failure);
   await user.click(screen.getByRole('button', { name: '登记收款' }));
   await screen.findByRole('alert');
-  expect(screen.getByLabelText('外部流水 *')).toHaveValue('DEMO-R');
+  expect(screen.getByLabelText('支付流水号 *')).toHaveValue('DEMO-R');
   await user.click(screen.getByRole('button', { name: '登记收款' }));
   await waitFor(() =>
     expect(
@@ -151,8 +153,8 @@ it('validates receipt registration and retries uncertain failures using the same
 it('retains an allocation after cancelling confirmation and submits explicit amount/version', async () => {
   mount(<BillingAction />, '/billing/receipts/r1/allocate');
   const user = userEvent.setup();
-  await screen.findByText('ZD-TEST ·', { exact: false });
-  await user.click(screen.getByRole('checkbox'));
+  await user.click(await screen.findByRole('combobox', { name: '来源单据' }));
+  await user.click(await screen.findByRole('option', { name: /ZD-TEST/ }));
   const amount = await screen.findByLabelText('ZD-TEST · 金额 *');
   await user.clear(amount);
   await user.type(amount, '600');
@@ -190,7 +192,7 @@ it('places server field violations beneath their inputs and focuses the invalid 
   const user = userEvent.setup();
   await screen.findByLabelText('金额 *');
   await user.type(screen.getByLabelText('金额 *'), '1');
-  await user.type(screen.getByLabelText('外部流水 *'), 'INVALID-REFERENCE');
+  await user.type(screen.getByLabelText('支付流水号 *'), 'INVALID-REFERENCE');
   await user.type(screen.getByLabelText('凭证 *'), '模拟凭证');
   api.request.mockRejectedValueOnce(
     new ApiClientError('Validation', {
@@ -211,9 +213,11 @@ it('places server field violations beneath their inputs and focuses the invalid 
     await screen.findByText('请检查此项的格式或长度。'),
   ).toBeInTheDocument();
   await waitFor(() =>
-    expect(screen.getByLabelText('外部流水 *')).toHaveFocus(),
+    expect(screen.getByLabelText('支付流水号 *')).toHaveFocus(),
   );
-  expect(screen.getByLabelText('外部流水 *')).toHaveValue('INVALID-REFERENCE');
+  expect(screen.getByLabelText('支付流水号 *')).toHaveValue(
+    'INVALID-REFERENCE',
+  );
 });
 it('keeps per-character and middle text edits while debouncing URL-style updates', async () => {
   function Example() {
@@ -360,7 +364,8 @@ it('keeps invalid amount feedback while editing and puts dialog actions outside 
 it('renders and focuses indexed allocation errors and revalidates their row', async () => {
   mount(<BillingAction />, '/billing/receipts/r1/allocate');
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('checkbox'));
+  await user.click(await screen.findByRole('combobox', { name: '来源单据' }));
+  await user.click(await screen.findByRole('option', { name: /ZD-TEST/ }));
   const amount = await screen.findByLabelText('ZD-TEST · 金额 *');
   await user.clear(amount);
   await user.type(amount, '600');
@@ -395,3 +400,89 @@ vi.mock('@nocobase/app-plugin-authentication/client', async (original) => ({
   >()),
   useAuthentication: () => ({ session: { user: { id: 'business-test' } } }),
 }));
+
+it('makes the payment reference optional for cash and required again for bank transfers', async () => {
+  mount(<BillingAction />, '/billing/receipts/new?contractId=c1');
+  const user = userEvent.setup();
+  await screen.findByLabelText('支付流水号 *');
+  await user.click(screen.getByRole('combobox', { name: '方式 *' }));
+  await user.click(await screen.findByRole('option', { name: '现金' }));
+  expect(screen.getByLabelText('支付流水号')).toBeInTheDocument();
+  await user.type(screen.getByLabelText('金额 *'), '100');
+  await user.type(screen.getByLabelText('凭证 *'), '现金收讫');
+  await user.click(screen.getByRole('button', { name: '登记收款' }));
+  await waitFor(() =>
+    expect(api.request.mock.calls.some(([r]) => r.method === 'POST')).toBe(
+      true,
+    ),
+  );
+});
+
+it('previews manual fees without a source document and labels their charge basis', async () => {
+  api.request.mockImplementation(async ({ path }) => {
+    if (path === 'contracts/c1/billingConfig')
+      return {
+        data: {
+          contract: {
+            id: 'c1',
+            number: 'HT-TEST',
+            version: 0,
+            start: '2026-08-01',
+            end: '2026-08-31',
+            cycle: 'month',
+            rent: '0',
+          },
+          lease: { status: 'active', version: 0 },
+          version: 1,
+          assets: [],
+          history: [
+            {
+              version: 1,
+              effectiveFrom: '2026-08-01',
+              payload: {
+                effectiveFrom: '2026-08-01',
+                rentChannel: 'settlement',
+                property: { enabled: false, method: 'fixed', price: '0' },
+                utilities: {},
+                meters: [],
+              },
+            },
+          ],
+        },
+      };
+    if (path.endsWith('/previewBill'))
+      return {
+        data: { lines: [], warnings: [], total: '100', config: { version: 1 } },
+      };
+    return { data: [], meta: { total: 0, page: 1, pageSize: 20 } };
+  });
+  mount(<BillingForm />, '/billing/bills/new?contractId=c1');
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: '添加 · 其他费用' }),
+  );
+  expect(
+    screen.getByLabelText('来源单号（选填，留空自动生成费用编号）'),
+  ).toHaveValue('');
+  await user.type(screen.getByLabelText('费用名称 *'), '维修费');
+  await user.type(screen.getByLabelText('金额 *'), '100');
+  await user.type(screen.getByLabelText('原因 *'), '维修');
+  await user.type(screen.getByLabelText('收费依据 *'), '维修确认单');
+  await user.click(screen.getByRole('button', { name: '预览' }));
+  await waitFor(() =>
+    expect(
+      api.request.mock.calls.some(([r]) => r.path.endsWith('/previewBill')),
+    ).toBe(true),
+  );
+});
+
+it('clears allocation sources from the inline X while keeping the receipt form open', async () => {
+  mount(<BillingAction />, '/billing/receipts/r1/allocate');
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('combobox', { name: '来源单据' }));
+  await user.click(await screen.findByRole('option', { name: /ZD-TEST/ }));
+  expect(await screen.findByLabelText('ZD-TEST · 金额 *')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: '清空来源单据选择' }));
+  expect(screen.queryByLabelText('ZD-TEST · 金额 *')).toBeNull();
+  expect(screen.getByRole('combobox', { name: '来源单据' })).toHaveFocus();
+});

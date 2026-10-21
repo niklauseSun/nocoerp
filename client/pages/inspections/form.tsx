@@ -390,6 +390,7 @@ function Body({
   const picker = (
     <>
       <Picker
+        disabled={w.busy || unknown || w.conflict}
         kind='inspectionAssignees'
         value={data.assigneeId ? [data.assigneeId] : []}
         caption={str(row?.payload.assigneeName)}
@@ -447,6 +448,7 @@ function Body({
             </Group>
             <Group title={t('inspection.assets')}>
               <Picker
+                disabled={w.busy || unknown || w.conflict}
                 kind='inspectionAssets'
                 multiple
                 value={assets}

@@ -1,3 +1,4 @@
+import OperationLogsProvider from './operation-logs.js';
 import OrganizationProvider from './organization.js';
 import ApprovalsProvider from './approvals.js';
 import MessagesProvider from './messages.js';
@@ -8,6 +9,7 @@ import HylProvider from './hyl.js';
 
 const serviceProviders: readonly ApplicationServiceProviderConstructor[] = [
   HylProvider,
+  OperationLogsProvider,
   OrganizationProvider,
   ApprovalsProvider,
   InspectionSchedules,

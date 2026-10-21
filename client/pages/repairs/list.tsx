@@ -156,7 +156,7 @@ export default function RepairList({
           </>
         }
       />
-      <div className='flex flex-wrap gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Search
           value={query.q}
           onChange={(v) => change('Q', v)}
@@ -167,20 +167,21 @@ export default function RepairList({
           ['Priority', priorities, 'priorities'],
           ['Category', categories, 'categories'],
         ].map(([key, values, group]) => (
-          <Choice
-            showMobileLabel
-            key={str(key)}
-            ariaLabel={t('repair.fields.' + str(key).toLowerCase())}
-            value={get(str(key))}
-            onChange={(v) => change(str(key), v)}
-            options={[
-              { value: '', label: t('repair.all') },
-              ...(values as string[]).map((v) => ({
-                value: v,
-                label: t('repair.' + str(group) + '.' + v),
-              })),
-            ]}
-          />
+          <div key={str(key)} className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+            <Choice
+              showMobileLabel
+              ariaLabel={t('repair.fields.' + str(key).toLowerCase())}
+              value={get(str(key))}
+              onChange={(v) => change(str(key), v)}
+              options={[
+                { value: '', label: t('repair.all') },
+                ...(values as string[]).map((v) => ({
+                  value: v,
+                  label: t('repair.' + str(group) + '.' + v),
+                })),
+              ]}
+            />
+          </div>
         ))}
         <Button
           variant={query.mine ? 'secondary' : 'outline'}

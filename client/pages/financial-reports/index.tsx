@@ -1,3 +1,4 @@
+import { LocalRecordSearch } from '#components/record-search';
 import { ReportSkeleton } from './loading.js';
 import { FinanceError } from './error.js';
 import { Link, Outlet, useLocation, useSearchParams } from 'react-router';
@@ -27,7 +28,6 @@ import { Alert, AlertDescription } from '#components/ui/alert';
 import { StatusBadge } from '#components/status-badge';
 import {
   Search,
-  Choice,
   Paged,
   Refresh,
   Money,
@@ -110,8 +110,10 @@ export default function Reports() {
         />
         <div className='flex flex-wrap items-center gap-3'>
           <div className='w-full sm:w-48'>
-            <Choice
-              ariaLabel={t('finance.project')}
+            <LocalRecordSearch
+              label={t('finance.project')}
+              placeholder={t('finance.allProjects')}
+              scopeKey='finance-project-filter'
               value={query.projectId || ''}
               onChange={(v) => change({ projectId: v })}
               options={[

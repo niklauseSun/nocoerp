@@ -20,3 +20,9 @@ it('blocks navigation while submitting even when the page is clean', () => {
   r.rerender({ busy: false });
   expect(guards.at(-1)!()).toBe(true);
 });
+it('allows the completed operation to close before the submitting render clears', () => {
+  const r = renderHook(() => useLeave(true, true));
+  expect(guards.at(-1)!()).toBe(false);
+  r.result.current.allow();
+  expect(guards.at(-1)!()).toBe(true);
+});

@@ -43,7 +43,11 @@ const groups = [
       'hyl-profit-sharing',
     ],
   },
-  { key: 'administration', icon: Settings2, names: ['hyl-organization'] },
+  {
+    key: 'administration',
+    icon: Settings2,
+    names: ['hyl-organization', 'hyl-operation-logs'],
+  },
 ] as const;
 
 /** Navigation-only groups run AFTER authorization filtering. Never move routes or

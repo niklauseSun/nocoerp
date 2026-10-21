@@ -42,6 +42,7 @@ export default {
   emptyHelp:
     'Tasks follow payment allocation. Historical sources can be backfilled.',
   noResults: 'No matching results',
+  searchSourceBill: 'Search bill number, merchant or contract',
   searchSources: 'Search tasks, merchants, contracts or bills',
   searchInvoices: 'Search invoices, parties, merchants, contracts or bills',
   searchConfigs: 'Search contracts, merchants or parties',

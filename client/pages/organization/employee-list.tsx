@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { employees, type Employee } from './roster.js';
+import { Fragment, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { Search } from './common.js';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -19,11 +20,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
 } from '#components/ui/dropdown-menu';
 import type { Member, Department, Snapshot } from './common.js';
 export function EmployeeList({
   members,
   department,
+  departments,
   profiles,
   names,
   canUpdate,
@@ -33,6 +37,7 @@ export function EmployeeList({
 }: {
   members: Member[];
   department: Department;
+  departments: Department[];
   profiles: Snapshot['memberProfiles'];
   names: Map<string, string>;
   canUpdate: boolean;
@@ -48,9 +53,14 @@ export function EmployeeList({
   const { t } = useTranslation();
   const [query, setQuery] = useSearchParams();
   const search = query.get('employeeQ') ?? '';
+  const departmentNames = useMemo(
+    () => new Map(departments.map((d) => [d.id, d.title])),
+    [departments],
+  );
+  const rows = useMemo(() => employees(members), [members]);
   const filtered = useMemo(
     () =>
-      members.filter((member) =>
+      rows.filter((member) =>
         (
           (names.get(member.userId) ?? member.userId) +
           ' ' +
@@ -59,9 +69,9 @@ export function EmployeeList({
           .toLocaleLowerCase()
           .includes(search.trim().toLocaleLowerCase()),
       ),
-    [members, names, profiles, search],
+    [rows, names, profiles, search],
   );
-  const columns = useMemo<ColumnDef<Member>[]>(
+  const columns = useMemo<ColumnDef<Employee>[]>(
     () => [
       {
         id: 'name',
@@ -85,19 +95,39 @@ export function EmployeeList({
       {
         id: 'department',
         header: t('organization.department'),
-        cell: () => department.title,
+        cell: ({ row }) => (
+          <div className='flex flex-col gap-1'>
+            {row.original.memberships.map((m) => (
+              <span key={m.id}>
+                {departmentNames.get(m.departmentId) ?? m.departmentId}
+              </span>
+            ))}
+          </div>
+        ),
       },
       {
         id: 'primary',
         header: t('organization.membershipType'),
         cell: ({ row }) => (
-          <Badge variant='secondary'>
-            {t(
-              row.original.primary
-                ? 'organization.primary'
-                : 'organization.secondaryDepartment',
-            )}
-          </Badge>
+          <div className='flex flex-col items-start gap-1'>
+            {row.original.memberships.map((m) => (
+              <Badge
+                key={m.id}
+                variant='secondary'
+                className='max-w-full whitespace-normal'
+              >
+                {row.original.memberships.length > 1
+                  ? (departmentNames.get(m.departmentId) ?? m.departmentId) +
+                    ' · '
+                  : ''}
+                {t(
+                  m.primary
+                    ? 'organization.primary'
+                    : 'organization.secondaryDepartment',
+                )}
+              </Badge>
+            ))}
+          </div>
         ),
       },
       {
@@ -157,36 +187,54 @@ export function EmployeeList({
                     </TooltipContent>
                   </Tooltip>
                   <DropdownMenuContent align='end' className='w-auto min-w-40'>
-                    <DropdownMenuItem
-                      disabled={busy}
-                      onClick={() => onChangePrimary(row.original)}
-                    >
-                      {t(
-                        row.original.primary
-                          ? 'organization.unsetPrimaryDepartment'
-                          : 'organization.setPrimaryDepartment',
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant='destructive'
-                      onClick={() =>
-                        onRemove({
-                          id: row.original.userId,
-                          name:
-                            names.get(row.original.userId) ??
-                            row.original.userId,
-                          departmentId: department.id,
-                          departmentTitle: department.title,
-                        })
-                      }
-                    >
-                      {t('organization.remove')}
-                    </DropdownMenuItem>
+                    {row.original.memberships.map((member, index) => {
+                      const title =
+                        departmentNames.get(member.departmentId) ??
+                        member.departmentId;
+                      const suffix =
+                        row.original.memberships.length > 1
+                          ? ' · ' + title
+                          : '';
+                      return (
+                        <Fragment key={member.id}>
+                          {index ? <DropdownMenuSeparator /> : null}
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel>{title}</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              disabled={busy}
+                              onClick={() => onChangePrimary(member)}
+                            >
+                              {t(
+                                member.primary
+                                  ? 'organization.unsetPrimaryDepartment'
+                                  : 'organization.setPrimaryDepartment',
+                              )}
+                              {suffix}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant='destructive'
+                              disabled={busy}
+                              onClick={() =>
+                                onRemove({
+                                  id: member.userId,
+                                  name:
+                                    names.get(member.userId) ?? member.userId,
+                                  departmentId: member.departmentId,
+                                  departmentTitle: title,
+                                })
+                              }
+                            >
+                              {t('organization.remove')}
+                              {suffix}
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </Fragment>
+                      );
+                    })}
                   </DropdownMenuContent>
                 </DropdownMenu>
               ),
-            } satisfies ColumnDef<Member>,
+            } satisfies ColumnDef<Employee>,
           ]
         : []),
     ],
@@ -194,7 +242,7 @@ export function EmployeeList({
       t,
       names,
       profiles,
-      department,
+      departmentNames,
       canUpdate,
       busy,
       onRemove,

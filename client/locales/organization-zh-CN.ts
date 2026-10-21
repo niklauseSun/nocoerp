@@ -78,7 +78,10 @@ export default {
 
   collapseDepartment: '收起 {{name}}',
   expandDepartment: '展开 {{name}}',
-  memberCount: '{{count}} 名直属成员',
+  memberCount: '{{count}} 名成员（含下级）',
+  directMembersOnly: '仅直属成员',
+  memberScopeHint:
+    '默认包含所有下级部门，按员工去重；多部门员工保留各自归属，最多有一个有效主部门。',
   departmentMembers: '{{name}} · 员工列表',
   employeeName: '员工姓名',
   membershipType: '部门归属',

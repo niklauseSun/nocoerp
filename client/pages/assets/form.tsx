@@ -1,3 +1,4 @@
+import { LocalRecordSearch } from '#components/record-search';
 import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import {
   AlertDialog,
@@ -295,52 +296,85 @@ export default function AssetForm() {
                                 ref={(element) =>
                                   field.ref({
                                     focus: () =>
-                                      element?.querySelector('button')?.focus(),
+                                      element
+                                        ?.querySelector<HTMLElement>(
+                                          'input,button',
+                                        )
+                                        ?.focus(),
                                   })
                                 }
                                 onBlur={field.onBlur}
                               >
-                                <Choice
-                                  id={`asset-${key}`}
-                                  disabled={busy || (key === 'type' && !!id)}
-                                  value={String(field.value || '')}
-                                  onChange={(v) => {
-                                    field.onChange(v);
-                                    if (key === 'type')
-                                      form.setValue('parentId', null, {
-                                        shouldDirty: true,
-                                      });
-                                  }}
-                                  options={
-                                    key === 'type'
-                                      ? types.map((value) => ({
-                                          value,
-                                          label: t(`assets.types.${value}`),
-                                        }))
-                                      : key === 'state'
-                                        ? [
-                                            'normal',
-                                            'maintenance',
-                                            'inactive',
-                                          ].map((value) => ({
+                                {key === 'parentId' ? (
+                                  <LocalRecordSearch
+                                    id={`asset-${key}`}
+                                    label={t('assets.fields.parentId')}
+                                    value={String(field.value || '')}
+                                    disabled={busy}
+                                    scopeKey={
+                                      'asset-parent:' +
+                                      type +
+                                      ':' +
+                                      (id || 'new')
+                                    }
+                                    onChange={(v) => field.onChange(v || null)}
+                                    options={tree.rows
+                                      .filter(
+                                        (a) =>
+                                          a.id !== id &&
+                                          (parentTypes[type].includes(a.type) ||
+                                            a.id === parentId),
+                                      )
+                                      .map((a) => ({
+                                        value: a.id,
+                                        label: a.name + ' · ' + a.number,
+                                      }))}
+                                  />
+                                ) : (
+                                  <Choice
+                                    id={`asset-${key}`}
+                                    disabled={busy || (key === 'type' && !!id)}
+                                    value={String(field.value || '')}
+                                    onChange={(v) => {
+                                      field.onChange(v);
+                                      if (key === 'type')
+                                        form.setValue('parentId', null, {
+                                          shouldDirty: true,
+                                        });
+                                    }}
+                                    options={
+                                      key === 'type'
+                                        ? types.map((value) => ({
                                             value,
-                                            label: t(`assets.states.${value}`),
+                                            label: t(`assets.types.${value}`),
                                           }))
-                                        : tree.rows
-                                            .filter(
-                                              (a) =>
-                                                a.id !== id &&
-                                                (parentTypes[type].includes(
-                                                  a.type,
-                                                ) ||
-                                                  a.id === parentId),
-                                            )
-                                            .map((a) => ({
-                                              value: a.id,
-                                              label: `${a.name} · ${a.number}`,
+                                        : key === 'state'
+                                          ? [
+                                              'normal',
+                                              'maintenance',
+                                              'inactive',
+                                            ].map((value) => ({
+                                              value,
+                                              label: t(
+                                                `assets.states.${value}`,
+                                              ),
                                             }))
-                                  }
-                                />
+                                          : tree.rows
+                                              .filter(
+                                                (a) =>
+                                                  a.id !== id &&
+                                                  (parentTypes[type].includes(
+                                                    a.type,
+                                                  ) ||
+                                                    a.id === parentId),
+                                              )
+                                              .map((a) => ({
+                                                value: a.id,
+                                                label: `${a.name} · ${a.number}`,
+                                              }))
+                                    }
+                                  />
+                                )}
                               </div>
                             ) : key === 'notes' ? (
                               <Textarea

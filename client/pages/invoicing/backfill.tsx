@@ -1,3 +1,9 @@
+import {
+  sourceRecordLabel,
+  type SourceRecord,
+} from '../hyl/source-record-label.js';
+import { RecordSearch } from '#components/record-search';
+import { useRecordSearchState } from '#hooks/use-record-search';
 import { invoiceFieldMessages } from './form-errors.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, useResolvedPath } from 'react-router';
@@ -14,16 +20,7 @@ import { Field, FieldLabel } from '#components/ui/field';
 import { useCoverFocus } from '../profit-sharing/focus.js';
 import { useWork } from '../cashier/work.js';
 import { useBusinessQuery, useBusinessPermission } from '../hyl/hooks.js';
-import {
-  Search,
-  Choice,
-  Paged,
-  FormField,
-  LoadingRows,
-  BillingError,
-  Metrics,
-  Confirm,
-} from './common.js';
+import { Paged, FormField, BillingError, Metrics, Confirm } from './common.js';
 import type { Page, Source } from './types.js';
 export default function Backfill() {
   useCoverFocus();
@@ -37,8 +34,8 @@ export default function Backfill() {
     parent = path.slice(0, path.lastIndexOf('/')),
     w = useWork(),
     can = useBusinessPermission('contracts', 'invoiceBackfill'),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
+    { q, setQ, page, setPage } = useRecordSearchState('invoice-backfill-bills'),
+    [selectedNumber, setSelectedNumber] = useState(''),
     [billId, setBillId] = useState(''),
     [reason, setReason] = useState(''),
     [requestId, setRequestId] = useState(() => crypto.randomUUID()),
@@ -46,7 +43,7 @@ export default function Backfill() {
     [confirm, setConfirm] = useState(false),
     [discard, setDiscard] = useState(false),
     [pending, setPending] = useState(''),
-    rows = useBusinessQuery<Page<{ id: string; number: string }>>(
+    rows = useBusinessQuery<Page<SourceRecord>>(
       'bills',
       { q, page, pageSize: 20 },
       can.can,
@@ -129,51 +126,59 @@ export default function Backfill() {
         ) : (
           <>
             {w.error ? <BillingError error={w.error} /> : null}
-            <Search
-              value={q}
-              onChange={(v) => {
-                setQ(v);
-                setPage(1);
-              }}
-              placeholder={t('invoice.searchSources')}
-            />
-            {rows.error ? (
-              <BillingError
-                error={rows.error}
-                retry={() => void rows.refetch()}
+            <Field>
+              <FieldLabel htmlFor='cashier-billId'>
+                {t('invoice.fields.billId')} *
+              </FieldLabel>
+              <RecordSearch
+                id='cashier-billId'
+                label={t('invoice.fields.billId') + ' *'}
+                value={billId}
+                scopeKey='invoice-backfill-bills'
+                placeholder={t('invoice.searchSourceBill')}
+                disabled={w.busy}
+                invalid={!!w.errors.billId}
+                loading={rows.isFetching}
+                options={(rows.isPlaceholderData
+                  ? []
+                  : (rows.data?.data ?? [])
+                ).map((row) => ({
+                  value: row.id,
+                  label: sourceRecordLabel(row),
+                }))}
+                onSearch={(query) => {
+                  setQ(query);
+                  setPage(1);
+                }}
+                onChange={(id) => {
+                  setBillId(id);
+                  setSelectedNumber(
+                    rows.data?.data.find((row) => row.id === id)?.number ?? '',
+                  );
+                  setPreview(undefined);
+                }}
+                status={
+                  rows.error ? (
+                    <BillingError
+                      error={rows.error}
+                      retry={() => void rows.refetch()}
+                    />
+                  ) : undefined
+                }
+                footer={
+                  rows.data && rows.data.meta.total > 20 ? (
+                    <Paged
+                      meta={rows.data.meta}
+                      busy={rows.isFetching}
+                      onChange={setPage}
+                    />
+                  ) : undefined
+                }
               />
-            ) : !rows.data ? (
-              <LoadingRows />
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor='cashier-billId'>
-                    {t('invoice.fields.billId')} *
-                  </FieldLabel>
-                  <Choice
-                    id='cashier-billId'
-                    value={billId}
-                    disabled={w.busy}
-                    onChange={(v) => {
-                      setBillId(v);
-                      setPreview(undefined);
-                    }}
-                    options={rows.data.data.map((r) => ({
-                      value: r.id,
-                      label: r.number,
-                    }))}
-                  />
-                  {w.errors.billId ? (
-                    <p className='text-destructive'>{w.errors.billId}</p>
-                  ) : null}
-                </Field>
-                <Paged
-                  meta={rows.data.meta}
-                  busy={rows.isFetching}
-                  onChange={setPage}
-                />
-              </>
-            )}
+              {w.errors.billId ? (
+                <p className='text-destructive'>{w.errors.billId}</p>
+              ) : null}
+            </Field>
             <FormField
               name='reason'
               required
@@ -226,8 +231,7 @@ export default function Backfill() {
           busy={w.busy}
           title={t('invoice.confirm', {
             action: t('invoice.backfill'),
-            number:
-              rows.data?.data.find((r) => r.id === billId)?.number ?? billId,
+            number: selectedNumber || billId,
           })}
           label={t('invoice.backfill')}
           onConfirm={() => void run(true)}

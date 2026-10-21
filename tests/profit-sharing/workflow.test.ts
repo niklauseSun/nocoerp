@@ -696,6 +696,10 @@ test('automatic bill and operating split, corrections, recovery and single settl
     `/contracts/${originContract.id}/splitRenewals`,
   );
   expect(renewals.map((r) => r.id)).toEqual([renewal.successorId]);
+  const namedRenewals = await call<{ id: string }[]>(
+    `/contracts/${originContract.id}/splitRenewals?q=${encodeURIComponent('Renewal split')}`,
+  );
+  expect(namedRenewals.map((r) => r.id)).toEqual([renewal.successorId]);
   const copied = await call<{ version: number }>(
     `/contracts/${renewal.successorId}/splitRules`,
     {

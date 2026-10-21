@@ -20,8 +20,9 @@ export function useLeave(dirty: boolean, busy: boolean) {
   // The app's navigation guard is synchronous. Capture the intended local link/POP,
   // decline navigation, then resume that URL after our asynchronous discard dialog.
   useNavigationGuard(() => {
+    if (mayCloseRef.current) return true;
     if (w.busy) return false;
-    if (mayCloseRef.current || !dirty) return true;
+    if (!dirty) return true;
     discardRef.current = undefined;
     discardOpenRef.current = true;
     setDiscard(true);

@@ -101,7 +101,9 @@ export default function BusinessAction() {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty, pending]);
-  useNavigationGuard(() => !pending);
+  const completedRef = useRef(false);
+  // A successful save must pass the guard before React clears submitting state.
+  useNavigationGuard(() => completedRef.current || !pending);
   useEffect(() => {
     if (latest.error instanceof ApiClientError && latest.error.status === 404)
       void client.invalidateQueries({ queryKey: ['hyl', kind] });
@@ -216,6 +218,7 @@ export default function BusinessAction() {
         type: 'success',
       });
       drafts.delete(draftKey);
+      completedRef.current = true;
       close();
     } catch (cause) {
       setError(cause);

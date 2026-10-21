@@ -1,3 +1,7 @@
+import { RecordSearch } from '#components/record-search';
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { sourceRecordLabel } from '../hyl/source-record-label.js';
+import { formatMoney } from '../billing/format.js';
 import { useCashierPermission } from './permission.js';
 import { scalar } from '../hyl/model.js';
 import { today } from './helpers.js';
@@ -18,7 +22,6 @@ import { RouteChildPage } from '#components/route-child-page';
 import { BackButton } from '#components/back-button';
 import { Button } from '#components/ui/button';
 import { Field, FieldLabel, FieldError } from '#components/ui/field';
-import { Checkbox } from '#components/ui/checkbox';
 import { Alert, AlertDescription } from '#components/ui/alert';
 import { useBusinessPermission, useBusinessQuery } from '../hyl/hooks.js';
 import type { Bill, ListResponse } from '../billing/types.js';
@@ -32,7 +35,6 @@ import {
   Choice,
   DateField,
   Money,
-  Search,
   Paged,
   BillingError,
   LoadingRows,
@@ -84,7 +86,7 @@ export default function CheckoutPage() {
   );
 }
 function CheckoutForm({ initial, path }: { initial?: CashRow; path: string }) {
-  const { t } = useTranslation(),
+  const { t, i18n } = useTranslation(),
     l = useLocation(),
     navigate = useNavigate(),
     api = useApiClient(),
@@ -127,8 +129,9 @@ function CheckoutForm({ initial, path }: { initial?: CashRow; path: string }) {
           payments: [],
         },
     ),
-    [q, setQ] = useState(''),
-    [page, setPage] = useState(1),
+    { q, setQ, page, setPage } = useRecordSearchState(
+      'cashier-bills:' + values.merchantId,
+    ),
     [preview, setPreview] = useState<Record<string, unknown>>(),
     [confirm, setConfirm] = useState(false),
     [discard, setDiscard] = useState(false),
@@ -161,7 +164,8 @@ function CheckoutForm({ initial, path }: { initial?: CashRow; path: string }) {
       if (!/^\d{1,12}(\.\d{1,2})?$/.test(r.amount) || Number(r.amount) <= 0)
         e[`payments.${i}.amount`] = t('cashier.positive');
       for (const k of ['reference', 'evidence'] as const)
-        if (!r[k].trim()) e[`payments.${i}.${k}`] = t('cashier.required');
+        if ((k !== 'reference' || r.method === 'bank') && !r[k].trim())
+          e[`payments.${i}.${k}`] = t('cashier.required');
       r.splits.forEach((s, j) => {
         if (!/^\d{1,12}(\.\d{1,2})?$/.test(s.amount) || Number(s.amount) <= 0)
           e[`payments.${i}.splits.${j}.amount`] = t('cashier.positive');
@@ -459,51 +463,67 @@ function CheckoutForm({ initial, path }: { initial?: CashRow; path: string }) {
           />
         </Group>
         <Group title={t('cashier.selected')}>
-          <Search
-            value={q}
-            onChange={(v) => {
-              setQ(v);
+          <RecordSearch
+            id='cashier-bill-source'
+            label={t('cashier.selected')}
+            value=''
+            scopeKey={'cashier-bills:' + values.merchantId}
+            hasSelection={!!values.targets.length}
+            onClear={() =>
+              update({
+                ...values,
+                targets: [],
+                payments: values.payments.map((payment) => ({
+                  ...payment,
+                  splits: [],
+                })),
+              })
+            }
+            disabled={w.busy || !values.merchantId}
+            loading={bills.isFetching}
+            options={(bills.isPlaceholderData || values.targets.length >= 50
+              ? []
+              : (bills.data?.data ?? [])
+            )
+              .filter((b) => !values.targets.some((r) => r.billId === b.id))
+              .map((b) => ({
+                value: b.id,
+                label:
+                  sourceRecordLabel(b) +
+                  ' · ' +
+                  formatMoney(b.remainingCents, i18n.language, true),
+              }))}
+            onChange={(id) => {
+              if (w.busy || values.targets.length >= 50) return;
+              const b = bills.data?.data.find((row) => row.id === id);
+              if (b && !values.targets.some((r) => r.billId === id))
+                void addBill(b);
+            }}
+            onSearch={(query) => {
+              setQ(query);
               setPage(1);
             }}
-            placeholder={t('cashier.billSearch')}
+            placeholder={t('hyl.copy.sourceSearch')}
+            status={
+              bills.error ? (
+                <BillingError
+                  error={bills.error}
+                  retry={() => void bills.refetch()}
+                />
+              ) : values.targets.length >= 50 ? (
+                <p role='status'>{t('hyl.copy.sourceLimit', { count: 50 })}</p>
+              ) : undefined
+            }
+            footer={
+              bills.data && bills.data.meta.total > 10 ? (
+                <Paged
+                  meta={bills.data.meta}
+                  busy={w.busy || bills.isFetching}
+                  onChange={setPage}
+                />
+              ) : undefined
+            }
           />
-          {bills.error ? (
-            <BillingError
-              error={bills.error}
-              retry={() => void bills.refetch()}
-            />
-          ) : values.merchantId && !bills.data ? (
-            <LoadingRows />
-          ) : null}
-          {bills.data?.data.map((b) => (
-            <label key={b.id} className='flex flex-wrap items-center gap-3'>
-              <Checkbox
-                checked={values.targets.some((r) => r.billId === b.id)}
-                disabled={
-                  w.busy ||
-                  (values.targets.length >= 50 &&
-                    !values.targets.some((r) => r.billId === b.id))
-                }
-                onCheckedChange={(checked) => {
-                  if (checked) void addBill(b);
-                  else
-                    update({
-                      ...values,
-                      targets: values.targets.filter((r) => r.billId !== b.id),
-                    });
-                }}
-              />
-              <span>{b.number}</span>
-              <Money cents={b.remainingCents} />
-            </label>
-          ))}
-          {bills.data ? (
-            <Paged
-              meta={bills.data.meta}
-              onChange={setPage}
-              busy={w.busy || bills.isFetching}
-            />
-          ) : null}
           {w.errors.targets ? (
             <FieldError id='cashier-targets' tabIndex={-1}>
               {w.errors.targets}
@@ -566,7 +586,7 @@ function CheckoutForm({ initial, path }: { initial?: CashRow; path: string }) {
                   name={`payments.${i}.${key}`}
                   label={t(`cashier.fields.${key}`)}
                   value={p[key]}
-                  required
+                  required={key !== 'reference' || p.method === 'bank'}
                   disabled={w.busy}
                   decimal={key === 'amount'}
                   error={w.errors[`payments.${i}.${key}`]}

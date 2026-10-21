@@ -1,3 +1,4 @@
+import { operationLogMiddleware } from './operation-logs/middleware.js';
 import { MailerProvider } from '@nocobase/app-server/mailer';
 import type { Application } from '@nocobase/app-server/application';
 import { DatabaseProvider } from '@nocobase/app-server/database';
@@ -44,6 +45,8 @@ export function createApp(runtime: AppRuntimeContext): Application {
   app.addHttpMiddleware(requestLoggingMiddleware);
   app.addHttpMiddleware(sessionHttpMiddleware);
   app.addHttpMiddleware(i18nHttpMiddleware);
+  // Audit must wrap plugin routes as well as application routes; provider boot is too late to register HTTP middleware.
+  app.addHttpMiddleware(operationLogMiddleware);
   app.addRoutes(healthCheckApiRoutes);
   app.addRuntimeContributions(runtime);
   app.addRoutes(spaRootRoutes);

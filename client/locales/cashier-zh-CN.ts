@@ -106,7 +106,7 @@ export default {
     amount: '金额',
     deposit: '押金抵扣',
     depositCents: '押金抵扣',
-    reference: '外部流水',
+    reference: '支付流水号',
     evidence: '凭证',
     reason: '原因',
     notes: '备注',

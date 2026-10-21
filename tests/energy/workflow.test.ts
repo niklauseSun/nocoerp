@@ -120,7 +120,7 @@ test('meter assignment, reviewed water/electricity, bill source reservation and 
   const sources = [];
   const meters = [];
   for (const type of ['water', 'electricity']) {
-    let meter = await call('/energyMeters', {
+    const meter = await call('/energyMeters', {
       code: type,
       name: type,
       type,
@@ -150,6 +150,21 @@ test('meter assignment, reviewed water/electricity, bill source reservation and 
         previewHash: preview.previewHash,
         values,
       },
+    );
+    const assigned = await call('/energyAssignments?meterId=' + meter.id);
+    expect(assigned[0]).toMatchObject({
+      contractTitle: 'Energy lease',
+      contractMerchantName: merchant.name,
+      contractNumber: contract.number,
+    });
+    const byContractName = await call(
+      '/energyAssignments?meterId=' +
+        meter.id +
+        '&q=' +
+        encodeURIComponent('Energy lease'),
+    );
+    expect(byContractName.map((r: { id: string }) => r.id)).toContain(
+      assignment.id,
     );
     let reading = await call('/energyReadings', {
       requestId: randomUUID(),

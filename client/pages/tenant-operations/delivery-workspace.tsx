@@ -1,3 +1,4 @@
+import { LocalRecordSearch } from '#components/record-search';
 import { ResponsiveTable, MobileSort } from '#components/responsive-table';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import { useTranslation } from '@nocobase/i18n/client';
@@ -161,57 +162,67 @@ export default function DeliveryWorkspace() {
               />
             </div>
           ) : (
-            <Choice
-              showMobileLabel
-              ariaLabel={t('operations.recordType')}
-              value={query.type || ''}
-              onChange={(v) => change({ type: v })}
-              options={[
-                { value: '', label: t('operations.allTypes') },
-                ...['notice', 'policy', 'complaint', 'suggestion'].map((v) => ({
-                  value: v,
-                  label: t('operations.serviceTypes.' + v),
-                })),
-              ]}
-            />
+            <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+              <Choice
+                showMobileLabel
+                ariaLabel={t('operations.recordType')}
+                value={query.type || ''}
+                onChange={(v) => change({ type: v })}
+                options={[
+                  { value: '', label: t('operations.allTypes') },
+                  ...['notice', 'policy', 'complaint', 'suggestion'].map(
+                    (v) => ({
+                      value: v,
+                      label: t('operations.serviceTypes.' + v),
+                    }),
+                  ),
+                ]}
+              />
+            </div>
           )}
           {!isService ? (
+            <div className='w-full min-w-0 sm:w-56 sm:shrink-0'>
+              <LocalRecordSearch
+                label={t('operations.project')}
+                placeholder={t('operations.allProjects')}
+                scopeKey='operations-project-filter'
+                value={query.projectId || ''}
+                onChange={(v) => change({ projectId: v })}
+                options={[
+                  { value: '', label: t('operations.allProjects') },
+                  ...(projects.data?.data ?? []).map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                  })),
+                ]}
+              />
+            </div>
+          ) : null}
+          <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
             <Choice
-              ariaLabel={t('operations.project')}
-              value={query.projectId || ''}
-              onChange={(v) => change({ projectId: v })}
+              showMobileLabel
+              ariaLabel={t('operations.status')}
+              value={query.status || ''}
+              onChange={(v) => change({ status: v })}
               options={[
-                { value: '', label: t('operations.allProjects') },
-                ...(projects.data?.data ?? []).map((p) => ({
-                  value: p.id,
-                  label: p.name,
+                { value: '', label: t('operations.allStatuses') },
+                ...(isService
+                  ? [
+                      'draft',
+                      'published',
+                      'withdrawn',
+                      'submitted',
+                      'processing',
+                      'closed',
+                    ]
+                  : ['ready', 'partial', 'completed', 'failed']
+                ).map((v) => ({
+                  value: v,
+                  label: t('operations.deliveryStatuses.' + v),
                 })),
               ]}
             />
-          ) : null}
-          <Choice
-            showMobileLabel
-            ariaLabel={t('operations.status')}
-            value={query.status || ''}
-            onChange={(v) => change({ status: v })}
-            options={[
-              { value: '', label: t('operations.allStatuses') },
-              ...(isService
-                ? [
-                    'draft',
-                    'published',
-                    'withdrawn',
-                    'submitted',
-                    'processing',
-                    'closed',
-                  ]
-                : ['ready', 'partial', 'completed', 'failed']
-              ).map((v) => ({
-                value: v,
-                label: t('operations.deliveryStatuses.' + v),
-              })),
-            ]}
-          />
+          </div>
           {filtered ? (
             <Button
               variant='ghost'

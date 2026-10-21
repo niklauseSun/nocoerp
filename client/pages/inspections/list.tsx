@@ -181,7 +181,7 @@ export default function List({
           ))}
         </nav>
       ) : null}
-      <div className='flex flex-wrap gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Search
           value={query.q}
           onChange={(v) => change('q', v)}
@@ -191,20 +191,21 @@ export default function List({
           ['type', ['inspection', 'security', 'cleaning'], 'types'],
           ['status', states, 'states'],
         ].map(([k, vs, g]) => (
-          <Choice
-            showMobileLabel
-            key={str(k)}
-            ariaLabel={t('inspection.fields.' + str(k))}
-            value={get(str(k))}
-            onChange={(v) => change(str(k), v)}
-            options={[
-              { value: '', label: t('inspection.all') },
-              ...(vs as string[]).map((v) => ({
-                value: v,
-                label: t('inspection.' + str(g) + '.' + v),
-              })),
-            ]}
-          />
+          <div key={str(k)} className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+            <Choice
+              showMobileLabel
+              ariaLabel={t('inspection.fields.' + str(k))}
+              value={get(str(k))}
+              onChange={(v) => change(str(k), v)}
+              options={[
+                { value: '', label: t('inspection.all') },
+                ...(vs as string[]).map((v) => ({
+                  value: v,
+                  label: t('inspection.' + str(g) + '.' + v),
+                })),
+              ]}
+            />
+          </div>
         ))}
         <Button
           variant={query.mine ? 'secondary' : 'outline'}

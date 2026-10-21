@@ -1,3 +1,7 @@
+import { useRecordSearchState } from '#hooks/use-record-search';
+import { RecordSearch, LocalRecordSearch } from '#components/record-search';
+import { useBusinessQuery } from '../hyl/hooks.js';
+import { Paged } from '../billing/common.js';
 import { useScopedQuery as useQuery } from '#hooks/use-scoped-query';
 import { Spinner } from '#components/ui/spinner';
 import { bindingDrafts } from './drafts.js';
@@ -20,16 +24,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@nocobase/i18n/client';
 import { RouteDialog } from '#components/route-dialog';
 import { Button } from '#components/ui/button';
-import { Checkbox } from '#components/ui/checkbox';
 import { Input } from '#components/ui/input';
 import { Textarea } from '#components/ui/textarea';
 import { Field, FieldLabel } from '#components/ui/field';
 import { Card, CardHeader, CardContent, CardTitle } from '#components/ui/card';
-import { Choice, DateField, LoadingRows } from '../hyl/common.js';
+import { DateField, LoadingRows } from '../hyl/common.js';
 import { useBusinessPermission } from '../hyl/hooks.js';
 import { AssetError } from './shared.js';
 import { DiscardDialog } from '../hyl/discard-dialog.js';
-import type { Binding, ContractAsset } from './model.js';
+import type { Asset, Binding, ContractAsset } from './model.js';
 function useBindings(id: string) {
   const api = useApiClient();
   return useQuery({
@@ -126,65 +129,95 @@ export function ContractAssetsSelector({
   onChange: (v: string[]) => void;
   disabled: boolean;
 }) {
-  const result = useAssetTree(!!merchantId),
-    { t } = useTranslation();
-  const leaves = result.rows.filter((a) => ['unit', 'stall'].includes(a.type));
+  const { t } = useTranslation(),
+    { q, setQ, page, setPage } = useRecordSearchState(
+      'contract-assets:' + merchantId,
+    );
+  const result = useBusinessQuery<{
+    data: Asset[];
+    meta: { page: number; pageSize: number; total: number };
+  }>('assets', { type: 'leaf', q, page, pageSize: 20 }, !!merchantId);
   return (
     <Field>
-      <FieldLabel>{t('assets.contractAssets')}</FieldLabel>
+      <FieldLabel htmlFor='contract-assets-search'>
+        {t('assets.contractAssets')}
+      </FieldLabel>
       <p className='text-sm text-muted-foreground'>
         {t('assets.contractHelp')}
       </p>
-      {!merchantId ? (
-        <p>{t('assets.chooseMerchantFirst')}</p>
-      ) : result.isPending ? (
-        <LoadingRows />
-      ) : result.error ? (
-        <AssetError error={result.error} retry={() => void result.refetch()} />
-      ) : (
-        <>
-          {leaves.length ? (
-            leaves.map((a) => (
-              <label
-                key={a.id}
-                className='flex items-start gap-3 rounded-lg border p-3'
-              >
-                <Checkbox
-                  checked={value.includes(a.id)}
-                  disabled={disabled}
-                  onCheckedChange={(checked) =>
-                    onChange(
-                      checked
-                        ? [...value, a.id]
-                        : value.filter((id) => id !== a.id),
-                    )
-                  }
-                />
-                <span>
-                  {a.name} · {a.number}
-                  <span className='block text-sm text-muted-foreground'>
-                    {a.lettableArea} {t('assets.sqm')} ·{' '}
-                    {t(`assets.states.${a.state}`)}
-                  </span>
-                </span>
-              </label>
-            ))
-          ) : (
-            <p>{t('assets.noBindings')}</p>
-          )}
-          {result.hasNextPage ? (
-            <Button
-              type='button'
-              variant='outline'
-              disabled={result.isFetchingNextPage}
-              onClick={() => void result.fetchNextPage()}
-            >
-              {t('hyl.actions.next')}
-            </Button>
-          ) : null}
-        </>
-      )}
+      <RecordSearch
+        id='contract-assets-search'
+        label={t('assets.contractAssets')}
+        value=''
+        hasSelection={value.length > 0}
+        onClear={() => onChange([])}
+        scopeKey={'contract-assets:' + merchantId}
+        disabled={disabled || !merchantId}
+        loading={result.isFetching}
+        options={(result.isPlaceholderData ? [] : result.data?.data || [])
+          .filter((a) => !value.includes(a.id))
+          .map((a) => ({ value: a.id, label: a.name + ' · ' + a.number }))}
+        onSearch={(v) => {
+          setQ(v);
+          setPage(1);
+        }}
+        onChange={(id) => {
+          if (id) onChange([...new Set([...value, id])]);
+        }}
+        placeholder={t('hyl.copy.search')}
+        status={
+          !merchantId ? (
+            <p>{t('assets.chooseMerchantFirst')}</p>
+          ) : result.error ? (
+            <AssetError
+              error={result.error}
+              retry={() => void result.refetch()}
+            />
+          ) : undefined
+        }
+        footer={
+          result.data && result.data.meta.total > 20 ? (
+            <Paged
+              meta={result.data.meta}
+              busy={result.isFetching}
+              onChange={setPage}
+            />
+          ) : undefined
+        }
+      />
+      <div className='flex flex-wrap gap-2'>
+        {value.map((id) => (
+          <SelectedContractAsset
+            key={id}
+            id={id}
+            disabled={disabled}
+            onRemove={() => onChange(value.filter((v) => v !== id))}
+          />
+        ))}
+      </div>
     </Field>
+  );
+}
+function SelectedContractAsset({
+  id,
+  disabled,
+  onRemove,
+}: {
+  id: string;
+  disabled: boolean;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation(),
+    result = useBusinessQuery<{ data: Asset }>('assets/' + id);
+  return (
+    <Button
+      type='button'
+      variant='outline'
+      disabled={disabled}
+      onClick={onRemove}
+    >
+      {result.data?.data.name || id} · {t('inspection.remove')}
+    </Button>
   );
 }
 export function ContractAssetSnapshots({ id }: { id: string }) {
@@ -411,8 +444,10 @@ export default function BindingForm() {
                 <FieldLabel htmlFor='bind-asset'>
                   {t('assets.choose')} *
                 </FieldLabel>
-                <Choice
+                <LocalRecordSearch
                   id='bind-asset'
+                  label={t('assets.choose') + ' *'}
+                  scopeKey={'binding-assets:' + id}
                   value={assetId}
                   onChange={setAssetId}
                   disabled={busy}

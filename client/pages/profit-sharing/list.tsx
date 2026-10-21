@@ -164,43 +164,49 @@ export default function SplitList() {
                   onChange={(v) => set('q', v)}
                   placeholder={t(rules ? 'split.searchRules' : 'split.search')}
                 />
-                <Choice
-                  ariaLabel={t('split.fields.status')}
-                  value={q.get(rules ? 'enabled' : 'status') ?? 'all'}
-                  onChange={(v) =>
-                    set(rules ? 'enabled' : 'status', v === 'all' ? '' : v)
-                  }
-                  options={[
-                    'all',
-                    ...(rules
-                      ? ['true', 'false']
-                      : [
-                          'pendingReview',
-                          'ready',
-                          'partiallyExecuted',
-                          'completed',
-                          'adjustmentPending',
-                          'cancelled',
-                        ]),
-                  ].map((value) => ({
-                    value,
-                    label: t(
-                      value === 'all' ? 'split.all' : `split.states.${value}`,
-                    ),
-                  }))}
-                />
-                {!rules ? (
+                <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
                   <Choice
-                    ariaLabel={t('split.fields.sourceKind')}
-                    value={q.get('sourceKind') ?? 'all'}
-                    onChange={(v) => set('sourceKind', v === 'all' ? '' : v)}
-                    options={['all', 'bill', 'settlement'].map((value) => ({
+                    ariaLabel={t('split.fields.status')}
+                    value={q.get(rules ? 'enabled' : 'status') ?? 'all'}
+                    onChange={(v) =>
+                      set(rules ? 'enabled' : 'status', v === 'all' ? '' : v)
+                    }
+                    options={[
+                      'all',
+                      ...(rules
+                        ? ['true', 'false']
+                        : [
+                            'pendingReview',
+                            'ready',
+                            'partiallyExecuted',
+                            'completed',
+                            'adjustmentPending',
+                            'cancelled',
+                          ]),
+                    ].map((value) => ({
                       value,
                       label: t(
-                        value === 'all' ? 'split.all' : `split.roles.${value}`,
+                        value === 'all' ? 'split.all' : `split.states.${value}`,
                       ),
                     }))}
                   />
+                </div>
+                {!rules ? (
+                  <div className='w-full min-w-0 sm:w-40 sm:shrink-0'>
+                    <Choice
+                      ariaLabel={t('split.fields.sourceKind')}
+                      value={q.get('sourceKind') ?? 'all'}
+                      onChange={(v) => set('sourceKind', v === 'all' ? '' : v)}
+                      options={['all', 'bill', 'settlement'].map((value) => ({
+                        value,
+                        label: t(
+                          value === 'all'
+                            ? 'split.all'
+                            : `split.roles.${value}`,
+                        ),
+                      }))}
+                    />
+                  </div>
                 ) : null}
                 <LeaseDateFilter
                   label={t(

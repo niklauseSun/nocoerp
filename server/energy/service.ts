@@ -1365,9 +1365,15 @@ export class EnergyService {
         }
       }
     }
+    const contract =
+      r.contractId && access
+        ? await this.hyl.get(access, 'contracts', r.contractId, 'read', c)
+        : undefined;
     return {
       ...r,
       ...r.payload,
+      contractTitle: contract?.payload.title ?? '',
+      contractMerchantName: contract?.name ?? '',
       meterCode: meter?.code ?? r.code,
       feeType: r.payload.feeType ?? meter?.payload.type,
       type: r.payload.type ?? r.payload.feeType ?? meter?.payload.type,
@@ -1444,7 +1450,15 @@ export class EnergyService {
       if (kind === 'billing' && r.status !== 'approved') continue;
       if (
         input.q &&
-        ![r.searchText, r.number, v.meterCode, v.contractNumber, v.assetName]
+        ![
+          r.searchText,
+          r.number,
+          v.meterCode,
+          v.contractNumber,
+          v.contractTitle,
+          v.contractMerchantName,
+          v.assetName,
+        ]
           .map(str)
           .join(' ')
           .toLowerCase()

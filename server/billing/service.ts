@@ -458,7 +458,7 @@ export class BillingService {
       async (c, row) => {
         if (row.version !== body.expectedContractVersion)
           fail('VERSION_CONFLICT', 'ABORTED');
-        const result = await previewBill(c, row, body);
+        const result = await previewBill(c, row, body, '', body.requestId);
         if (result.config.version !== body.configVersion)
           fail('VERSION_CONFLICT', 'ABORTED');
         if (result.warnings.length && !body.acknowledgeGaps)
@@ -483,7 +483,12 @@ export class BillingService {
             depositCents: '0',
             allocatedCents: '0',
             remainingCents: result.amountCents,
-            payload: this.snapshot(row, body, result.config, access.actor),
+            payload: this.snapshot(
+              row,
+              { ...body, others: result.others },
+              result.config,
+              access.actor,
+            ),
             createdAt: now,
             updatedAt: now,
           },
@@ -594,7 +599,7 @@ export class BillingService {
             )
               fail('ENERGY_MANAGED_METER_REQUIRED');
         }
-        const result = await previewBill(c, row, body, id);
+        const result = await previewBill(c, row, body, id, body.requestId);
         if (result.config.version !== body.configVersion)
           fail('VERSION_CONFLICT', 'ABORTED');
         if (result.warnings.length && !body.acknowledgeGaps)
@@ -653,7 +658,12 @@ export class BillingService {
           remainingCents: result.amountCents,
           version: bill.version + 1,
           updatedAt: new Date().toISOString(),
-          payload: this.snapshot(row, body, result.config, access.actor),
+          payload: this.snapshot(
+            row,
+            { ...body, others: result.others },
+            result.config,
+            access.actor,
+          ),
         };
         await c
           .repository<Bill>('hylBills')
@@ -1052,13 +1062,34 @@ export class BillingService {
     );
     const searchedIds = scoped
       .filter((c) =>
-        `${c.number} ${names.get(c.merchantId) ?? ''}`
+        `${c.number} ${typeof c.payload.title === 'string' ? c.payload.title : ''} ${names.get(c.merchantId) ?? ''}`
           .toLocaleLowerCase()
           .includes(input.q.toLocaleLowerCase()),
       )
       .map((c) => c.id);
     const ids = scoped.map((r) => r.id),
       table = kind === 'bills' ? 'hylBills' : 'hylReceipts';
+    const snapshotIds =
+      kind === 'bills' && input.q && ids.length
+        ? (
+            await this.hyl.db.repository<Bill>('hylBills').findMany({
+              filter: buildFilter((f) =>
+                f.or(ids.map((id) => f.string('contractId').eq(id))),
+              ),
+              select: (fields) => fields.fields('id', 'payload'),
+            })
+          )
+            .filter((row) => {
+              const snapshot = row.payload?.contract;
+              return (
+                typeof snapshot?.title === 'string' &&
+                snapshot.title
+                  .toLocaleLowerCase()
+                  .includes(input.q.toLocaleLowerCase())
+              );
+            })
+            .map((row) => String(row.id))
+        : [];
     const filter = buildFilter((f) => {
       const parts = [
         ids.length
@@ -1073,6 +1104,7 @@ export class BillingService {
               ? [f.string('reference').includes(input.q)]
               : []),
             ...searchedIds.map((id) => f.string('contractId').eq(id)),
+            ...snapshotIds.map((id) => f.string('id').eq(id)),
           ]),
         );
       if (input.from)
@@ -1223,6 +1255,7 @@ export class BillingService {
         displayStatus: kind === 'bills' ? billStatus(row) : receiptStatus(row),
         merchantName: names.get(row.merchantId) ?? null,
         contractNumber: contractMap.get(row.contractId)?.number ?? null,
+        contractTitle: contractMap.get(row.contractId)?.payload.title ?? null,
         overdue:
           kind === 'bills' &&
           row.status === 'issued' &&
