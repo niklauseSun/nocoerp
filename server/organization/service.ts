@@ -149,8 +149,9 @@ export class OrganizationService {
     actor: string,
     input: z.infer<typeof departmentInput>,
     id?: string,
+    connection?: DatabaseConnection,
   ) {
-    return this.db.transaction(async (c) => {
+    const write = async (c: DatabaseConnection) => {
       await this.lock(c);
       const tree = await this.tree(c),
         old = id ? tree.find((x) => x.id === id) : undefined;
@@ -206,14 +207,16 @@ export class OrganizationService {
       );
       await this.refresh(c, changed);
       return row;
-    });
+    };
+    return connection ? write(connection) : this.db.transaction(write);
   }
   async member(
     actor: string,
     departmentId: string,
     input: { userId: string; active: boolean; primary: boolean },
+    connection?: DatabaseConnection,
   ) {
-    return this.db.transaction(async (c) => {
+    const write = async (c: DatabaseConnection) => {
       await this.lock(c);
       if (!(await this.tree(c)).some((x) => x.id === departmentId))
         refuse('ORG_NOT_FOUND', 'NOT_FOUND');
@@ -238,7 +241,8 @@ export class OrganizationService {
       await this.audit(c, actor, 'membership.update', row.id, old ?? null, row);
       await this.refresh(c, [input.userId]);
       return row;
-    });
+    };
+    return connection ? write(connection) : this.db.transaction(write);
   }
   async project(actor: string, input: z.infer<typeof projectInput>) {
     return this.db.transaction(async (c) => {

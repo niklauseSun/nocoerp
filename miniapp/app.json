@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/erp/index"],
+  "window": {
+    "navigationBarTitleText": "海源里 · 商家服务",
+    "navigationBarBackgroundColor": "#f6f8f7",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f6f8f7"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

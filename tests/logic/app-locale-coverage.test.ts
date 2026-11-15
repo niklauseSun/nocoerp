@@ -20,7 +20,8 @@ function translationKeys(
     if (!prefix && key === 'overrides') return [];
     const keyPath = prefix ? prefix + '.' + key : key;
     return value && typeof value === 'object'
-      ? translationKeys(value as Record<string, unknown>, keyPath)
+      ? // i18n also permits t('group', { returnObjects: true }); retain the group address.
+        [keyPath, ...translationKeys(value as Record<string, unknown>, keyPath)]
       : [keyPath.replace(/_(?:zero|one|two|few|many|other)$/u, '')];
   });
 }

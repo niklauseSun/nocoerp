@@ -144,6 +144,21 @@ export default function Detail() {
               <dl className='grid gap-4 sm:grid-cols-2'>
                 <div className='grid grid-cols-[8rem_1fr] items-start gap-3'>
                   <dt className='text-sm text-muted-foreground'>
+                    {t('wecom.delivery')}
+                  </dt>
+                  <dd>
+                    {d.wecomDeliveryStatus === 'notSent' ||
+                    !d.wecomDeliveryStatus ? (
+                      t('wecom.notSent')
+                    ) : d.wecomDeliveryStatus === 'configurationMismatch' ? (
+                      t('wecom.configurationMismatch')
+                    ) : (
+                      <State value={d.wecomDeliveryStatus} />
+                    )}
+                  </dd>
+                </div>
+                <div className='grid grid-cols-[8rem_1fr] items-start gap-3'>
+                  <dt className='text-sm text-muted-foreground'>
                     {t('messages.deliveryStatus')}
                   </dt>
                   <dd>

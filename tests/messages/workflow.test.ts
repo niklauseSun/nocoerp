@@ -11,6 +11,7 @@ import { authorizationToken } from '@nocobase/app-plugin-authorization';
 import { createStandaloneServer } from '../../server/standalone.js';
 import { messageToken } from '../../server/providers/messages.js';
 import { hylToken } from '../../server/providers/hyl.js';
+import { wecomToken } from '../../server/providers/wecom.js';
 import { plusDays } from '../../server/messages/sources.js';
 import { today } from '../../server/inspections/calendar.js';
 const test = createAppTest({
@@ -18,6 +19,15 @@ const test = createAppTest({
   config: {
     secrets: { keys: [{ version: 1, key: randomBytes(32).toString('hex') }] },
     logging: { enabled: false },
+    app: { publicOrigin: 'http://localhost' },
+    wecom: {
+      enabled: true,
+      corpId: 'test-corp',
+      agentId: '1000001',
+      appSecret: 'test-app-secret',
+      contactsSecret: 'test-contact-secret',
+      notifications: true,
+    },
   },
 });
 test('personal reminders: four business domains, persistent inbox, dedupe, resolve, privacy and fencing', async ({
@@ -51,6 +61,59 @@ test('personal reminders: four business domains, persistent inbox, dedupe, resol
     'messageTodos/' + randomUUID(),
   ])
     expect((await request('/' + p)).status).toBe(401);
+  const wecom = testApp.application.container.resolve(wecomToken);
+  const [employee] = (
+    await wecom.org.users.list({ search: DEFAULT_ADMIN_CREDENTIALS.email })
+  ).items;
+  vi.spyOn(wecom.read, 'call').mockImplementation(async (path) => {
+    if (path === 'department/list')
+      return {
+        errcode: 0,
+        department: [{ id: 1, name: 'Test company', parentid: 0 }],
+      };
+    if (path === 'user/get')
+      return {
+        errcode: 0,
+        userid: 'reminder-employee',
+        name: employee.name,
+        email: employee.email,
+        department: [1],
+        main_department: 1,
+        status: 1,
+      };
+    throw new Error('Unexpected WeCom read: ' + path);
+  });
+  const submitToWecom = vi
+    .spyOn(wecom.appClient, 'call')
+    .mockImplementation(async (path) => {
+      if (path !== 'message/send')
+        throw new Error('Unexpected WeCom submission: ' + path);
+      return { errcode: 0, msgid: 'test-wecom-accepted' };
+    });
+  const department = await call('/wecom/mappings', {
+    kind: 'department',
+    remoteId: '1',
+  });
+  const departmentPreview = await call('/wecom/mappings/' + department.id);
+  await call('/wecom/mappings/' + department.id + '/sync', {
+    direction: 'pull',
+    fingerprint: departmentPreview.fingerprint,
+  });
+  await wecom.org.member(employee.id, department.localId, {
+    userId: employee.id,
+    active: true,
+    primary: true,
+  });
+  const mapping = await call('/wecom/mappings', {
+    kind: 'user',
+    localId: employee.id,
+    remoteId: 'reminder-employee',
+  });
+  const employeePreview = await call('/wecom/mappings/' + mapping.id);
+  await call('/wecom/mappings/' + mapping.id + '/sync', {
+    direction: 'pull',
+    fingerprint: employeePreview.fingerprint,
+  });
   const original = await call('/messagePreferences');
   expect(original.enabled).toBe(false);
   expect(original).not.toHaveProperty('userId');
@@ -185,6 +248,28 @@ test('personal reminders: four business domains, persistent inbox, dedupe, resol
       expect((await call('/notificationInApp/messages')).length).toBe(4),
     { timeout: 10000 },
   );
+  await vi.waitFor(
+    async () => {
+      for (const todo of todos) {
+        expect(
+          (await call('/messageTodos/' + todo.id)).wecomDeliveryStatus,
+        ).toBe('completed');
+      }
+    },
+    { timeout: 10000 },
+  );
+  expect(submitToWecom).toHaveBeenCalledTimes(4);
+  for (const todo of todos)
+    expect(submitToWecom).toHaveBeenCalledWith(
+      'message/send',
+      {},
+      expect.objectContaining({
+        touser: 'reminder-employee',
+        agentid: 1000001,
+        text: { content: expect.stringContaining('/messageTodos/' + todo.id) },
+      }),
+      expect.any(AbortSignal),
+    );
   const inbox = await call('/notificationInApp/messages');
   expect(inbox).toHaveLength(4);
   expect(
@@ -214,6 +299,7 @@ test('personal reminders: four business domains, persistent inbox, dedupe, resol
   ]);
   expect(parallel.reduce((n, r) => n + r.sent, 0)).toBe(0);
   expect((await call('/notificationInApp/messages')).length).toBe(4);
+  expect(submitToWecom).toHaveBeenCalledTimes(4);
   const repaired = todos.find((x: any) => x.kind === 'repairs'),
     service = testApp.application.container.resolve(messageToken),
     hyl = testApp.application.container.resolve(hylToken);

@@ -98,12 +98,14 @@ export class RepairService {
     intent: unknown,
     p: Awaited<ReturnType<RepairService['prepare']>>,
     fn: (c: DatabaseConnection) => Promise<RepairOrder>,
+    guard?: (c: DatabaseConnection) => Promise<unknown>,
   ) {
     const hash = createHash('sha256')
       .update(JSON.stringify({ actor: access.actor, intent }))
       .digest('hex');
     return this.hyl.db.transaction(async (c) => {
       if (p.merchant) await this.hyl.lockMerchant(c, p.merchant.id);
+      await guard?.(c);
       await lockProjects(c, [p.asset.projectId]);
       const a = await getAsset(c, p.asset.id, p.ap);
       await getAsset(c, p.asset.id, p.rp);
@@ -166,7 +168,12 @@ export class RepairService {
       },
     });
   }
-  async create(access: Access, values: CreateValues, requestId: string) {
+  async create(
+    access: Access,
+    values: CreateValues,
+    requestId: string,
+    guard?: (c: DatabaseConnection) => Promise<unknown>,
+  ) {
     // Contract determines merchant identity; caller cannot attach a mismatched merchant.
     if (values.contractId) {
       const contract = await this.hyl.get(
@@ -185,6 +192,7 @@ export class RepairService {
       { create: values },
       p,
       (c) => this.createPrepared(c, access, values, p),
+      guard,
     );
     return this.view(access, result);
   }

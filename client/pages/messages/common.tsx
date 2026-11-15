@@ -31,6 +31,7 @@ export interface Todo {
   path: string;
   notificationId: string;
   deliveryStatus: string;
+  wecomDeliveryStatus?: string;
   canRetry: boolean;
 }
 export interface Prefs {

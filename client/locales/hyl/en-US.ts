@@ -141,6 +141,7 @@ export default {
     date: 'Business date',
     source: 'Source',
     reference: 'Business or transfer reference',
+    orderCount: 'Order count',
     receipts: 'Gross receipts',
     refunds: 'Refunds',
     activity: 'Promotion vouchers',
@@ -294,6 +295,10 @@ export default {
     noContract: 'Create a contract covering this period first.',
   },
   errors: {
+    REPORT_DAILY_ALREADY_EXISTS:
+      'This merchant already has a mini-program daily report. Edit the original report.',
+    REPORT_DATE_IMMUTABLE:
+      'The date on a mini-program report cannot be changed.',
     ASSET_BINDING_OVERLAP:
       'This unit is occupied during the selected dates. Choose another unit or period.',
     ASSET_LEAF_REQUIRED: 'Select one unit or stall.',

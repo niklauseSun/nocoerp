@@ -46,7 +46,7 @@ const groups = [
   {
     key: 'administration',
     icon: Settings2,
-    names: ['hyl-organization', 'hyl-operation-logs'],
+    names: ['hyl-organization', 'hyl-wecom', 'hyl-operation-logs'],
   },
 ] as const;
 

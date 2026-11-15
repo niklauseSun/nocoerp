@@ -137,6 +137,7 @@ export default {
     date: '业务日期',
     source: '来源',
     reference: '业务或转账参考号',
+    orderCount: '订单数',
     receipts: '实收金额',
     refunds: '退款金额',
     activity: '活动券金额',
@@ -283,6 +284,8 @@ export default {
     noContract: '请先创建覆盖本期的合同。',
   },
   errors: {
+    REPORT_DAILY_ALREADY_EXISTS: '该商户当日已有小程序汇总报送，请修改原单。',
+    REPORT_DATE_IMMUTABLE: '小程序报送创建后不能修改营业日期。',
     ASSET_BINDING_OVERLAP:
       '该铺位在所选期间已有商户绑定，请选择其他铺位或调整日期。',
     ASSET_LEAF_REQUIRED: '请选择一个铺位或摊位。',

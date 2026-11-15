@@ -39,6 +39,12 @@ export class MessageService {
     readonly hyl: HylService,
     readonly notifications: NotificationService,
     readonly wording: Wording,
+    readonly externalReminder?: (userId: string, todo: Todo) => Promise<void>,
+    readonly externalDelivery?: (
+      userId: string,
+      todo: Todo,
+    ) => Promise<{ status: string; canRetry: boolean }>,
+    readonly externalRetry?: (userId: string, todo: Todo) => Promise<void>,
   ) {
     this.sources = new MessageSources(hyl);
   }
@@ -260,6 +266,28 @@ export class MessageService {
         .findMany({ filter: { userId: access.actor, status: 'active' } });
       result.active = rows.length;
       for (const r of rows) {
+        if (this.externalReminder) {
+          try {
+            await this.fence(this.c(), p);
+            const fresh = await this.sources.inspect(
+              access,
+              r.kind,
+              r.sourceType,
+              r.sourceId,
+              p,
+            );
+            if (
+              (await this.person(access.actor)) &&
+              fresh.candidates.some(
+                (x) => access.actor + ':' + key(x) === r.dedupeKey,
+              )
+            )
+              await this.externalReminder(access.actor, r);
+          } catch {
+            result.failed++;
+            error = 'MESSAGE_SEND_FAILED';
+          }
+        }
         if (r.notificationId) continue;
         try {
           if (await this.dispatch(access, r, p)) result.sent++;
@@ -327,11 +355,15 @@ export class MessageService {
     if (!r) fail('RECORD_NOT_FOUND', 'NOT_FOUND');
     try {
       const v = await this.view(access, r, await this.preferences(access)),
-        d = await this.delivery(r.notificationId);
+        d = await this.delivery(r.notificationId),
+        external = await this.externalDelivery?.(access.actor, r);
       return {
         ...v,
         ...d,
-        canRetry: v.status === 'active' && (d.canRetry || !r.notificationId),
+        wecomDeliveryStatus: external?.status ?? 'notSent',
+        canRetry:
+          v.status === 'active' &&
+          (d.canRetry || !r.notificationId || !!external?.canRetry),
       };
     } catch (e) {
       if (hidden(e)) fail('RECORD_NOT_FOUND', 'NOT_FOUND');
@@ -395,13 +427,18 @@ export class MessageService {
       else {
         const n = await this.notifications.getNotification(r.notificationId),
           failed = n?.deliveries.filter((x) => x.status === 'failed') ?? [];
-        if (!failed.length) fail('MESSAGE_RETRY_NOT_ALLOWED');
+        if (
+          !failed.length &&
+          !(await this.externalDelivery?.(access.actor, r))?.canRetry
+        )
+          fail('MESSAGE_RETRY_NOT_ALLOWED');
         for (const delivery of failed)
           await this.notifications.retryDelivery({
             deliveryId: delivery.id,
             reason: 'Recipient requested retry',
           });
       }
+      await this.externalRetry?.(access.actor, r);
     } finally {
       await this.c()
         .repository<Preferences>(prefTable)

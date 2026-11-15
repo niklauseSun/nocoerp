@@ -1,4 +1,5 @@
 import operationLogs from './operation-logs-zh-CN.js';
+import wecom from './wecom-zh-CN.js';
 import operations from './operations-zh-CN.js';
 import mobile from './mobile-zh-CN.js';
 import organization from './organization-zh-CN.js';
@@ -35,6 +36,7 @@ const zhCN: AppResource = {
   mobile,
   operations,
   operationLogs,
+  wecom,
   assets,
   dashboard,
   lease,

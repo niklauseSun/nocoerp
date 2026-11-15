@@ -1,8 +1,10 @@
+import merchantMiniapp from './merchant-miniapp.js';
 import operationLogs from './operation-logs.js';
 import repairFiles from './repair-files.js';
 import reportingFiles from './reporting-files.js';
 import tenantOperations from './tenant-operations.js';
 import organization from './organization.js';
+import wecom from './wecom.js';
 import finance from './finance.js';
 import approvals from './approvals.js';
 import messages from './messages.js';
@@ -26,6 +28,7 @@ import merchantProfile from './merchant-profile.js';
 
 const routes: readonly AppRouteContribution<Application>[] = [
   operationLogs,
+  merchantMiniapp,
   ...assetFiles,
   assets,
   ...merchantProfile,
@@ -44,6 +47,7 @@ const routes: readonly AppRouteContribution<Application>[] = [
   approvals,
   finance,
   organization,
+  wecom,
   tenantOperations,
   operationsDelivery,
   ...reportingFiles,

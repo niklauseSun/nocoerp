@@ -35,6 +35,7 @@ export default {
   durationMs: 'Duration (ms)',
   from: 'From date',
   modules: {
+    merchantMiniapp: 'Merchant mini-program',
     scheduler: 'Inspection schedules',
     notificationInApp: 'Inbox status',
     users: 'Users',
@@ -78,6 +79,11 @@ export default {
     authorization: 'Authorization',
   },
   actions: {
+    merchantMiniappSetGrant: 'Set merchant mini-program authorization',
+    merchantMiniappSaveReport: 'Save mini-program report',
+    merchantMiniappSubmitReport: 'Submit mini-program report',
+    merchantMiniappCreateRepair: 'Report issue from mini-program',
+
     schedulerDisableSchedule: 'scheduler Disable Schedule',
     schedulerEnableSchedule: 'scheduler Enable Schedule',
     notificationInAppDeleteMessage: 'notification In App Delete Message',

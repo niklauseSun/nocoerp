@@ -1,6 +1,6 @@
 # 消息通知与业务待办
 
-- 官方通知与站内收件箱插件已注册；server/config/notification.ts 默认稳定 inbox/in-app 渠道。只站内投递，不接外部短信、邮件或支付。复用 InboxBlock 和官方持久化读未读、分页与实时刷新；不得直写插件消息表或伪造事件。
+- 官方通知与站内收件箱插件已注册；server/config/notification.ts 默认稳定 inbox/in-app 渠道。站内投递为基础；可选企业微信应用渠道见 [企微接入](wecom.md)，不接外部短信、邮件或支付。复用 InboxBlock 和官方持久化读未读、分页与实时刷新；不得直写插件消息表或伪造事件。
 - 个人入口 /inbox（原 route id 不变，新增侧栏 Bell）、/messageTodos/:messageTodoId、/messagePreferences。个人页 auth required/authz skip；所有接口以 session actor 做不可覆盖的所有权检查，各业务源再走当前权限。消息已读不等于业务处理。
 - server/messages/service.ts、sources.ts，迁移 202610190002_messages：个人偏好默认关闭；开启后按合同临近/已到期、未结账单到期/逾期、报修派单处理验收关闭、采购审批下单收货验收付款生成待办。普通角色不自动授权。收件人必须有效 person；定时任务每次重建其授权上下文，不能复用管理员权限。
 - 使用普通 ScheduleExecutor @nocoerp/messages，每五分钟检查最久未检查的至多 10 人；多用户批次可能超过五分钟。内部工作无需 Scheduler 管理页面。个人检查有持久化五分钟租约，CAS 设置写入在租约中拒绝；失效 token 不得提交 projection/ack。失效收件人先从候选人中剔除，避免饿死后续用户。
