@@ -247,10 +247,9 @@ it('clears a selected local user when searching a new options page', async () =>
   );
   mount('/wecom/new');
   await screen.findByRole('dialog');
-  await userEvent.click(
-    within(screen.getByRole('dialog')).getByLabelText(/类型/),
-  );
-  await userEvent.click(screen.getByRole('option', { name: '人员' }));
+  within(screen.getByRole('dialog')).getByLabelText(/类型/).focus();
+  await userEvent.keyboard('{ArrowDown}');
+  await userEvent.click(await screen.findByRole('option', { name: '人员' }));
   screen.getByLabelText('本地记录').focus();
   await userEvent.keyboard('{ArrowDown}');
   await userEvent.click(
