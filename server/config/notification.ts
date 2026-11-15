@@ -4,7 +4,12 @@ import type { NotificationConfig } from '@nocobase/app-plugin-notification/serve
 
 const notification: AppConfigFactory<NotificationConfig> =
   defineMailChannelsConfig({
-    defaults: { channels: { inbox: { provider: 'in-app' } } },
+    defaults: {
+      channels: {
+        inbox: { provider: 'in-app' },
+        wecom: { provider: 'nocoerp-wecom' },
+      },
+    },
   });
 
 export default notification;

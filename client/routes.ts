@@ -1,4 +1,4 @@
-import { History } from 'lucide-react';
+import { History, MessagesSquare } from 'lucide-react';
 import {
   Home,
   Network,
@@ -1666,6 +1666,26 @@ const appRoutes: AppClientRouteContribution = defineAppRoutes([
     name: 'message-preferences',
     path: '/messagePreferences',
     componentLoader: () => import('./pages/messages/preferences.js'),
+  },
+  {
+    name: 'hyl-wecom',
+    path: '/wecom',
+    auth: 'required',
+    authz: { resource: { type: 'settings', id: 'hyl.wecom' }, action: 'read' },
+    navigation: { title: 'wecom.title', icon: MessagesSquare },
+    componentLoader: () => import('./pages/wecom/index.js'),
+    children: [
+      {
+        name: 'hyl-wecom-new',
+        path: 'new',
+        componentLoader: () => import('./pages/wecom/new.js'),
+      },
+      {
+        name: 'hyl-wecom-detail',
+        path: ':id',
+        componentLoader: () => import('./pages/wecom/detail.js'),
+      },
+    ],
   },
   {
     name: 'hyl-operation-logs',

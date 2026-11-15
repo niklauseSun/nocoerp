@@ -108,6 +108,21 @@ describe('app client routes', () => {
         ?.navigation,
     ).toMatchObject({ title: 'messages.title' });
   });
+  it('protects WeCom configuration and inherits protection in both children', () => {
+    const route = applicationRoutes[0].routes.find(
+      (r) => r.name === 'hyl-wecom',
+    );
+    expect(route).toMatchObject({
+      path: '/wecom',
+      auth: 'required',
+      authz: {
+        resource: { type: 'settings', id: 'hyl.wecom' },
+        action: 'read',
+      },
+      navigation: { title: 'wecom.title' },
+    });
+    expect(route?.children?.map((r) => r.path)).toEqual(['new', ':id']);
+  });
 });
 
 /** This application's own contribution, registered the way the client runtime registers it. */

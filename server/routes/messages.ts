@@ -47,6 +47,7 @@ const todo = z.object({
 });
 const detail = todo.extend({
   deliveryStatus: z.string(),
+  wecomDeliveryStatus: z.string(),
   canRetry: z.boolean(),
 });
 const result = z.object({

@@ -143,6 +143,18 @@ mail:
   providers: {}
 
 # File logging is independent of terminal formatting.
+wecom:
+  enabled: false
+  corpId: ''
+  agentId: ''
+  appSecret: ''
+  contactsSecret: ''
+  # Optional separate credential with full directory read scope; defaults to appSecret.
+  readSecret: ''
+  # Only already-established mappings are scanned; first creation is manual.
+  autoSync: false
+  notifications: false
+
 logging:
   level: info
   file:

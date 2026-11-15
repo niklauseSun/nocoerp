@@ -10,6 +10,7 @@ import { authorizationToken } from '@nocobase/app-plugin-authorization';
 import { i18nToken } from '@nocobase/app-server/i18n';
 import { hylToken } from './hyl.js';
 import { MessageService } from '../messages/service.js';
+import { wecomRemindersToken } from './wecom.js';
 export const messageToken =
   createServiceToken<MessageService>('nocoerp/messages');
 export default class MessagesProvider extends ServiceProvider<Application> {
@@ -26,6 +27,14 @@ export default class MessagesProvider extends ServiceProvider<Application> {
           const t = i18n.getFixedT('nocoerp', locale);
           return { title: t('messages.title'), body: t('messages.' + reason) };
         },
+        (userId, todo) =>
+          this.app.container.resolve(wecomRemindersToken).send(userId, todo),
+        (userId, todo) =>
+          this.app.container
+            .resolve(wecomRemindersToken)
+            .delivery(userId, todo),
+        (userId, todo) =>
+          this.app.container.resolve(wecomRemindersToken).retry(userId, todo),
       );
     });
   }

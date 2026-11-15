@@ -2,6 +2,7 @@ import OperationLogsProvider from './operation-logs.js';
 import OrganizationProvider from './organization.js';
 import ApprovalsProvider from './approvals.js';
 import MessagesProvider from './messages.js';
+import WecomProvider from './wecom.js';
 import InspectionSchedules from './inspections.js';
 import type { ApplicationServiceProviderConstructor } from '@nocobase/app-server/application';
 
@@ -11,6 +12,7 @@ const serviceProviders: readonly ApplicationServiceProviderConstructor[] = [
   HylProvider,
   OperationLogsProvider,
   OrganizationProvider,
+  WecomProvider,
   ApprovalsProvider,
   InspectionSchedules,
   MessagesProvider,
