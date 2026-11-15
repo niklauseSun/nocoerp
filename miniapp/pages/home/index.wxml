@@ -1,0 +1,98 @@
+<template name="photos">
+  <view class="label">{{copy.attachments}}</view>
+  <view class="muted small">{{copy.attachHint}}</view>
+  <view class="photos">
+    <view wx:for="{{photos}}" wx:key="*this" class="photo">
+      <image src="{{item}}" mode="aspectFill" bindtap="previewImage" data-form="{{form}}" data-src="{{item}}" />
+      <button size="mini" disabled="{{busy}}" bindtap="removeImage" data-form="{{form}}" data-index="{{index}}">{{copy.remove}}</button>
+    </view>
+    <button wx:if="{{photos.length < 3}}" class="secondary" disabled="{{busy}}" bindtap="image" data-form="{{form}}">＋ {{copy.addImage}}</button>
+  </view>
+</template>
+<view class="app">
+  <view class="preview-banner">{{copy.preview}}</view>
+  <view wx:if="{{!logged}}" class="login">
+    <view class="eyebrow">{{copy.brand}} / MERCHANT</view>
+    <view class="hero-title">{{copy.loginTitle}}</view>
+    <view class="muted intro">{{copy.loginHint}}</view>
+    <view class="card">
+      <label for="phone" class="label">{{copy.phone}}</label>
+      <input id="phone" type="number" maxlength="11" value="{{phone}}" bindinput="phoneInput" disabled="{{busy}}" />
+      <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+      <button class="primary" bindtap="login" disabled="{{busy}}">{{copy.login}}</button>
+    </view>
+    <view class="notice">{{copy.warning}}</view>
+    <button wx:if="{{error}}" class="secondary" bindtap="reset" disabled="{{busy}}">{{copy.reset}}</button>
+  </view>
+  <block wx:else>
+    <view class="merchant-bar">
+      <view class="eyebrow">{{copy.merchant}}</view>
+      <picker mode="selector" range="{{merchants}}" range-key="name" value="{{merchantIndex}}" bindchange="switchMerchant" disabled="{{busy}}">
+        <view class="merchant-select"><text>{{merchants[merchantIndex].name}}</text><text class="small">{{copy.switch}}⌄</text></view>
+      </picker>
+      <view class="muted small">{{view.merchant.unit}}</view>
+    </view>
+    <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+    <view wx:if="{{!view}}" class="card">
+      <button class="secondary" bindtap="refresh" disabled="{{busy}}">{{copy.retry}}</button>
+      <button class="secondary" bindtap="signout" disabled="{{busy}}">{{copy.signout}}</button>
+      <button class="danger" bindtap="reset" disabled="{{busy}}">{{copy.reset}}</button>
+    </view>
+    <block wx:elif="{{tab === 0}}">
+      <view class="hero"><view class="eyebrow">{{today}}</view><view class="hero-title">{{copy.welcome}}</view><view class="small">{{copy.preview}}</view></view>
+      <view class="section-title">{{copy.overview}}</view>
+      <view class="metrics">
+        <view class="card"><view class="muted small">{{copy.due}}</view><view class="metric">¥{{amountDue}}</view></view>
+        <view class="card"><view class="muted small">{{copy.pending}}</view><view class="metric">{{billCount}}</view></view>
+        <view class="card"><view class="muted small">{{copy.reportCount}}</view><view class="metric">{{submittedCount}}</view></view>
+        <view class="card"><view class="muted small">{{copy.repairsCount}}</view><view class="metric">{{view.repairs.length}}</view></view>
+      </view>
+      <button class="primary" bindtap="tab" data-index="1">{{copy.reportTitle}} →</button>
+      <button class="secondary" bindtap="tab" data-index="2">{{copy.billsTitle}} →</button>
+      <view class="notice">{{copy.warning}}</view>
+    </block>
+    <block wx:elif="{{tab === 1}}">
+      <view class="section-title">{{copy.reportTitle}}</view><view class="muted intro">{{copy.reportHint}}</view>
+      <view class="card form">
+        <view class="label">{{copy.date}} *</view><view wx:if="{{errorCode === 'DATE'}}" class="field-error">{{error}}</view>
+        <picker mode="date" value="{{report.date}}" end="{{today}}" bindchange="field" data-form="report" data-field="date" disabled="{{busy}}"><view class="input">{{report.date}} ⌄</view></picker>
+        <label for="report-amount" class="label">{{copy.amount}} *</label><input id="report-amount" type="digit" value="{{report.amount}}" bindinput="field" data-form="report" data-field="amount" placeholder="0.00" disabled="{{busy}}" /><view wx:if="{{errorCode === 'AMOUNT'}}" class="field-error">{{error}}</view>
+        <label for="report-orders" class="label">{{copy.orders}} *</label><input id="report-orders" type="number" value="{{report.orders}}" bindinput="field" data-form="report" data-field="orders" placeholder="0" disabled="{{busy}}" /><view wx:if="{{errorCode === 'ORDERS'}}" class="field-error">{{error}}</view>
+        <label for="report-note" class="label">{{copy.note}}</label><textarea id="report-note" value="{{report.note}}" bindinput="field" data-form="report" data-field="note" maxlength="500" disabled="{{busy}}" /><view wx:if="{{errorCode === 'NOTE'}}" class="field-error">{{error}}</view>
+        <template is="photos" data="{{copy, photos:report.photos, form:'report', busy}}" />
+        <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+        <view class="actions"><button class="secondary" bindtap="saveReport" data-submit="no" disabled="{{busy}}">{{copy.save}}</button><button class="primary" bindtap="saveReport" data-submit="yes" loading="{{busy}}" disabled="{{busy}}">{{copy.submit}}</button></view>
+        <button wx:if="{{report.id}}" class="secondary" bindtap="cancelEdit" disabled="{{busy}}">{{copy.cancelEdit}}</button>
+      </view>
+      <view class="section-title">{{copy.reportHistory}}</view>
+      <view wx:if="{{!view.reports.length}}" class="empty">{{copy.emptyReports}}</view>
+      <view wx:for="{{view.reports}}" wx:key="id" class="card record"><view class="row"><text>{{item.date}}</text><text class="badge">{{item.statusText}}</text></view><view class="metric">¥{{item.amountText}}</view><view class="muted">{{copy.orders}}：{{item.orders}}</view><button wx:if="{{item.status === 'draft'}}" size="mini" class="secondary" bindtap="editReport" data-id="{{item.id}}" disabled="{{busy}}">{{copy.edit}}</button></view>
+    </block>
+    <block wx:elif="{{tab === 2}}">
+      <view class="section-title">{{copy.billsTitle}}</view><view class="muted intro">{{copy.billsHint}}</view>
+      <view wx:for="{{view.bills}}" wx:key="id" class="card record"><view>{{item.title}}</view><view class="metric">¥{{item.amountText}}</view><button wx:if="{{item.remaining > 0}}" class="primary" bindtap="pay" data-id="{{item.id}}" loading="{{busy}}" disabled="{{busy}}">{{copy.pay}}</button><view wx:else class="badge">{{copy.paid}}</view></view>
+      <view class="section-title">{{copy.billHistory}}</view><view wx:if="{{!view.payments.length}}" class="empty">{{copy.emptyPayments}}</view>
+      <view wx:for="{{view.payments}}" wx:key="id" class="card record"><view>{{item.title}}</view><view class="metric">¥{{item.amountText}}</view><view class="muted small">{{item.timeText}} · {{copy.paid}}</view></view>
+    </block>
+    <block wx:elif="{{tab === 3}}">
+      <view class="section-title">{{copy.repairTitle}}</view><view class="muted intro">{{copy.repairHint}}</view>
+      <view class="card form">
+        <view class="label">{{copy.category}} *</view><picker mode="selector" range="{{copy.categories}}" value="{{repair.category}}" bindchange="field" data-form="repair" data-field="category" disabled="{{busy}}"><view class="input">{{copy.categories[repair.category]}} ⌄</view></picker>
+        <label for="repair-title" class="label">{{copy.repairName}} *</label><input id="repair-title" maxlength="80" value="{{repair.title}}" bindinput="field" data-form="repair" data-field="title" disabled="{{busy}}" /><view wx:if="{{errorCode === 'REPAIR'}}" class="field-error">{{error}}</view>
+        <label for="repair-description" class="label">{{copy.repairDescription}} *</label><textarea id="repair-description" maxlength="1000" value="{{repair.description}}" bindinput="field" data-form="repair" data-field="description" disabled="{{busy}}" /><view wx:if="{{errorCode === 'REPAIR'}}" class="field-error">{{error}}</view>
+        <label for="repair-phone" class="label">{{copy.contactPhone}} *</label><input id="repair-phone" type="number" maxlength="11" value="{{repair.phone}}" bindinput="field" data-form="repair" data-field="phone" disabled="{{busy}}" /><view wx:if="{{errorCode === 'REPAIR'}}" class="field-error">{{error}}</view>
+        <template is="photos" data="{{copy,photos:repair.photos,form:'repair',busy}}" />
+        <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+        <button class="primary" bindtap="saveRepair" loading="{{busy}}" disabled="{{busy}}">{{copy.repairSubmit}}</button>
+      </view>
+      <view class="section-title">{{copy.repairHistory}}</view><view wx:if="{{!view.repairs.length}}" class="empty">{{copy.emptyRepairs}}</view>
+      <view wx:for="{{view.repairs}}" wx:key="id" class="card record"><view class="row"><text>{{item.title}}</text><text class="badge">{{copy.submitted}}</text></view><view class="muted">{{item.description}}</view><view class="small muted">{{copy.categories[item.category]}}</view></view>
+    </block>
+    <block wx:elif="{{tab === 4}}">
+      <view class="section-title">{{copy.profileTitle}}</view><view class="card"><view>{{phone}}</view><view wx:for="{{merchants}}" wx:key="id" class="merchant-item">{{item.name}}<view class="muted small">{{item.unit}}</view></view></view>
+      <view class="notice">{{copy.privacy}}</view>
+      <button class="secondary" bindtap="signout" disabled="{{busy}}">{{copy.signout}}</button><button class="danger" bindtap="reset" disabled="{{busy}}">{{copy.reset}}</button>
+    </block>
+    <view class="tabs"><button wx:for="{{copy.tabs}}" wx:key="*this" class="tab {{tab === index ? 'selected' : ''}}" bindtap="tab" data-index="{{index}}" disabled="{{busy}}">{{item}}</button></view>
+  </block>
+</view>

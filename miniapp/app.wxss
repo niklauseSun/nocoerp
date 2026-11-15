@@ -1,0 +1,48 @@
+/* Native WeChat UI: one shared semantic token palette, no admin React/shadcn runtime. */
+page { --background:#f6f8f7; --foreground:#1d302a; --surface:#ffffff; --primary:#176b51; --primary-foreground:#ffffff; --muted:#65776f; --border:#dce6e0; --soft:#e7f0ea; --danger:#ad3434; --danger-soft:#fff0ed; background:var(--background); color:var(--foreground); font-family:system-ui,-apple-system,sans-serif; font-size:30rpx; line-height:1.6; }
+view,text { box-sizing:border-box; overflow-wrap:anywhere; }
+.app { padding:0 32rpx calc(150rpx + env(safe-area-inset-bottom)); }
+.preview-banner { margin:0 -32rpx; padding:14rpx 32rpx; text-align:center; color:var(--primary); background:var(--soft); font-size:24rpx; font-weight:600; }
+.login { padding-top:68rpx; }
+.eyebrow { color:var(--muted); font-size:23rpx; letter-spacing:3rpx; }
+.hero-title { font-size:48rpx; font-weight:650; line-height:1.4; margin:18rpx 0; }
+.intro { margin-bottom:24rpx; }
+.muted { color:var(--muted); }
+.small { font-size:24rpx; }
+.card { padding:28rpx; background:var(--surface); border:1rpx solid var(--border); border-radius:24rpx; margin-bottom:20rpx; }
+.notice { color:var(--muted); background:var(--soft); border-radius:18rpx; padding:24rpx; font-size:24rpx; margin:28rpx 0; }
+.label { display:block; font-weight:550; margin:22rpx 0 12rpx; }
+input,.input,textarea { box-sizing:border-box; width:100%; border:1rpx solid var(--border); border-radius:14rpx; padding:20rpx; background:var(--background); color:var(--foreground); font-size:30rpx; min-height:88rpx; }
+textarea { height:180rpx; }
+button { border-radius:16rpx; font-size:28rpx; min-height:88rpx; line-height:1.5; padding:22rpx 24rpx; margin-top:20rpx; font-weight:550; }
+button::after { border:0; }
+button[disabled] { opacity:.5; }
+button.primary { background:var(--primary); color:var(--primary-foreground); }
+button.secondary { background:var(--surface); color:var(--foreground); border:1rpx solid var(--border); }
+button.danger { color:var(--danger); background:var(--danger-soft); }
+.error { padding:24rpx; border-radius:16rpx; color:var(--danger); background:var(--danger-soft); margin:22rpx 0; }
+.merchant-bar { padding:30rpx 0; }
+.merchant-select { display:flex; align-items:center; justify-content:space-between; gap:20rpx; min-height:88rpx; font-size:34rpx; font-weight:600; }
+.merchant-select .small { flex-shrink:0; color:var(--primary); }
+.hero { padding:32rpx; border-radius:24rpx; background:var(--primary); color:var(--primary-foreground); }
+.hero .eyebrow { color:var(--primary-foreground); opacity:.8; }
+.section-title { font-size:34rpx; font-weight:650; margin:34rpx 0 20rpx; }
+.metrics { display:grid; grid-template-columns:1fr 1fr; gap:20rpx; }
+.metrics .card { margin:0; min-width:0; }
+.metric { font-size:42rpx; font-weight:650; margin:12rpx 0; font-variant-numeric:tabular-nums; }
+.row { display:flex; justify-content:space-between; align-items:flex-start; gap:20rpx; }
+.badge { display:inline-block; border-radius:12rpx; padding:4rpx 12rpx; font-size:23rpx; color:var(--primary); background:var(--soft); flex-shrink:0; }
+.actions { display:flex; gap:20rpx; }
+.actions button { flex:1; }
+.empty { padding:38rpx; border:1rpx dashed var(--border); border-radius:20rpx; color:var(--muted); text-align:center; }
+.photos { display:flex; flex-wrap:wrap; gap:16rpx; margin:16rpx 0; }
+.photo { width:160rpx; }
+.photo image { width:160rpx; height:160rpx; border-radius:16rpx; }
+.photo button { margin-top:0; width:100%; }
+.merchant-item { padding:22rpx 0; border-top:1rpx solid var(--border); margin-top:20rpx; }
+.tabs { position:fixed; bottom:0; left:0; right:0; display:flex; padding:10rpx 12rpx calc(10rpx + env(safe-area-inset-bottom)); background:var(--surface); border-top:1rpx solid var(--border); }
+button.tab { flex:1; min-width:0; margin:0; padding:22rpx 4rpx; background:var(--surface); color:var(--muted); font-size:24rpx; }
+button.tab.selected { background:var(--soft); color:var(--primary); }
+@media (prefers-color-scheme:dark) { page { --background:#15231e; --foreground:#e8f0ec; --surface:#20342b; --primary:#84c9aa; --primary-foreground:#15231e; --muted:#a8bdb1; --border:#395147; --soft:#2b4438; --danger:#ffb2a8; --danger-soft:#4d2928; } }
+
+.field-error { color:var(--danger); font-size:24rpx; margin:8rpx 0 12rpx; }
