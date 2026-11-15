@@ -112,6 +112,7 @@ export const revenueSchema = z
     ]),
     reference: required(100),
     receipts: amount,
+    orderCount: z.number().int().min(0).max(999999999).optional(),
     refunds: amount,
     activity: amount,
     cash: amount,

@@ -33,6 +33,7 @@ export default {
   durationMs: '耗时（毫秒）',
   from: '开始日期',
   modules: {
+    merchantMiniapp: '商家小程序',
     scheduler: '巡检自动调度',
     notificationInApp: '消息状态',
     users: '员工管理',
@@ -76,6 +77,11 @@ export default {
     authorization: '权限管理',
   },
   actions: {
+    merchantMiniappSetGrant: '设置小程序商户授权',
+    merchantMiniappSaveReport: '保存小程序报送',
+    merchantMiniappSubmitReport: '提交小程序报送',
+    merchantMiniappCreateRepair: '提交小程序报修',
+
     schedulerDisableSchedule: '停用自动调度',
     schedulerEnableSchedule: '启用自动调度',
     notificationInAppDeleteMessage: '删除消息',

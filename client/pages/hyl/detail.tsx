@@ -412,6 +412,19 @@ export default function BusinessDetail({
         </>
       ) : (
         <dl className='grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr] md:gap-4'>
+          {kind === 'revenueReports' &&
+          typeof row.payload.orderCount === 'number' ? (
+            <div className='contents'>
+              <dt className='text-sm text-muted-foreground'>
+                {t('hyl.fields.orderCount')}
+              </dt>
+              <dd className='tabular-nums'>
+                {new Intl.NumberFormat(i18n.language).format(
+                  row.payload.orderCount,
+                )}
+              </dd>
+            </div>
+          ) : null}
           {specs[kind]
             .filter(
               (spec) =>

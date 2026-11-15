@@ -418,6 +418,11 @@ export class HylService {
     data: unknown,
     id?: string,
     expectedVersion?: number,
+    internal?: {
+      connection: DatabaseConnection;
+      policy: RepositoryPolicy;
+      merchantPolicy: RepositoryPolicy;
+    },
   ): Promise<Row> {
     const payload = schemas[kind].parse(data) as Record<string, unknown>;
     const creationId = kind === 'merchants' ? scalar(payload.creationId) : '';
@@ -441,7 +446,8 @@ export class HylService {
     const requestHash = createHash('sha256')
       .update(JSON.stringify({ payload, licenseFileId }))
       .digest('hex');
-    const policy = await this.policy(access, kind, 'write');
+    const policy =
+      internal?.policy ?? (await this.policy(access, kind, 'write'));
     const assetAccess =
       ((kind === 'merchants' && !!payload.assetId) || kind === 'contracts') &&
       (payload.assetId ||
@@ -459,7 +465,8 @@ export class HylService {
     const merchantPolicy =
       kind === 'merchants'
         ? undefined
-        : await this.policy(access, 'merchants', 'read');
+        : (internal?.merchantPolicy ??
+          (await this.policy(access, 'merchants', 'read')));
     const previousUser =
       kind === 'merchants' && id && payload.userId
         ? (
@@ -485,7 +492,7 @@ export class HylService {
       if (decision.effect === 'deny')
         fail('ACCESS_DENIED', 'PERMISSION_DENIED');
     }
-    return this.db.transaction(async (c) => {
+    const run = async (c: DatabaseConnection) => {
       if (creationId) {
         const previous = await c
           .repository('hylMerchantCreations')
@@ -606,6 +613,27 @@ export class HylService {
           scalar(payload.date),
           scalar(payload.category),
         );
+      if (kind === 'revenueReports' && !internal) {
+        const daily = await c.repository('hylMiniappDaily').findOne({
+          filter: {
+            merchantId: scalar(payload.merchantId),
+            date: scalar(payload.date),
+          },
+        });
+        if (daily && daily.id !== id)
+          fail('REPORT_DAILY_ALREADY_EXISTS', 'ALREADY_EXISTS');
+        if (
+          id &&
+          old?.date !== payload.date &&
+          (await c.repository('hylMiniappDaily').exists({ filter: { id } }))
+        )
+          fail('REPORT_DATE_IMMUTABLE', 'INVALID_ARGUMENT');
+        if (
+          old?.payload.orderCount !== undefined &&
+          payload.orderCount === undefined
+        )
+          payload.orderCount = old.payload.orderCount;
+      }
       if (kind === 'revenueReports' || kind === 'expenses') {
         if (
           old &&
@@ -838,7 +866,8 @@ export class HylService {
         });
       await this.event(c, result, access, old ? 'edit' : 'create');
       return result;
-    });
+    };
+    return internal ? run(internal.connection) : this.db.transaction(run);
   }
   async generate(
     access: Access,

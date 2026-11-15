@@ -171,3 +171,10 @@ logging:
     enabled: true
     # Set true for human-readable terminal output.
     pretty: false
+
+# Merchant WeChat mini-program, disabled until its HTTPS deployment and AppID are configured.
+# merchantMiniapp:
+#   enabled: false
+#   appId: ''
+#   signInPerPeerLimit: 120 # Per minute per transport peer; behind a proxy, also throttle at the edge.
+#   appSecret: '' # Prefer MERCHANT_MINIAPP_APP_SECRET on the server. Never place it in miniapp/.

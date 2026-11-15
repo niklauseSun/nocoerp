@@ -1,3 +1,4 @@
+import merchantMiniapp from './merchant-miniapp.js';
 import operationLogs from './operation-logs.js';
 import repairFiles from './repair-files.js';
 import reportingFiles from './reporting-files.js';
@@ -27,6 +28,7 @@ import merchantProfile from './merchant-profile.js';
 
 const routes: readonly AppRouteContribution<Application>[] = [
   operationLogs,
+  merchantMiniapp,
   ...assetFiles,
   assets,
   ...merchantProfile,

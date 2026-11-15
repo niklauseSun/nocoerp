@@ -1,0 +1,59 @@
+<view class="app">
+  <view wx:if="{{!logged}}" class="login">
+    <view class="hero-title">{{copy.title}}</view>
+    <view class="muted intro">{{copy.loginHint}}</view>
+    <view class="notice" wx:if="{{!configured}}">{{copy.noConfig}}</view>
+    <button class="primary" open-type="getPhoneNumber" bindgetphonenumber="login" loading="{{busy}}" disabled="{{busy || !configured}}">{{copy.identity}}</button>
+  </view>
+  <block wx:else>
+    <view class="card">
+      <view class="label">{{copy.shop}}</view>
+      <picker range="{{merchants}}" range-key="name" value="{{index}}" bindchange="changeMerchant" disabled="{{busy}}"><view class="input">{{merchants[index].name}} ⌄</view></picker>
+      <view class="actions"><button class="secondary" bindtap="refresh" disabled="{{busy}}" loading="{{busy}}">{{copy.refresh}}</button><button class="secondary" bindtap="logout" disabled="{{busy}}">{{copy.logout}}</button></view>
+    </view>
+    <view class="actions"><button wx:for="{{copy.tabs}}" wx:key="*this" data-index="{{index}}" class="{{tab === index ? 'primary' : 'secondary'}}" bindtap="changeTab" disabled="{{busy}}">{{item}}</button></view>
+    <block wx:if="{{tab === 0}}">
+      <view class="card form">
+        <view class="label">{{copy.date}} *</view>
+        <picker mode="date" end="{{today}}" value="{{report.date}}" data-form="report" data-key="date" bindchange="field" disabled="{{busy || !!report.id}}"><view class="input">{{report.date}} ⌄</view></picker>
+        <label class="label" for="amount">{{copy.amount}} *</label><input id="amount" type="digit" value="{{report.amount}}" bindinput="field" data-form="report" data-key="amount" disabled="{{busy}}"/>
+        <label class="label" for="orders">{{copy.orders}} *</label><input id="orders" type="number" value="{{report.orders}}" bindinput="field" data-form="report" data-key="orders" disabled="{{busy}}"/>
+        <label class="label" for="note">{{copy.note}}</label><textarea id="note" value="{{report.note}}" maxlength="500" bindinput="field" data-form="report" data-key="note" disabled="{{busy}}"/>
+        <view class="label">{{copy.evidence}} *</view>
+        <view wx:if="{{report.uploaded}}" class="muted">{{copy.savedFiles}}：{{report.uploaded}}</view>
+        <view class="photos"><view wx:for="{{report.photos}}" wx:key="*this" class="photo"><image src="{{item}}" mode="aspectFill"/><button size="mini" class="secondary" data-index="{{index}}" bindtap="remove" disabled="{{busy}}">{{copy.remove}}</button></view></view>
+        <button wx:if="{{report.photos.length < 3}}" class="secondary" bindtap="image" disabled="{{busy}}">{{copy.add}}</button>
+        <view class="actions"><button class="secondary" bindtap="save" data-submit="no" disabled="{{busy}}">{{copy.draft}}</button><button class="primary" bindtap="save" data-submit="yes" disabled="{{busy}}">{{copy.submit}}</button></view>
+        <button wx:if="{{report.id}}" class="secondary" bindtap="newReport" disabled="{{busy}}">{{copy.newReport}}</button>
+      </view>
+      <view wx:if="{{!busy && !rows.length}}" class="empty">{{copy.reportEmpty}}</view>
+      <view wx:for="{{rows}}" wx:key="id" class="card record"><view class="row"><text>{{item.date}} · {{item.number}}</text><text class="badge">{{item.statusText}}</text></view><view>¥{{item.amount}} · {{copy.orders}}：{{item.orders === null ? '—' : item.orders}}</view><view wx:if="{{item.returnReason}}" class="muted">{{copy.returnReason}}：{{item.returnReason}}</view><button wx:if="{{item.editable}}" class="secondary" data-id="{{item.id}}" bindtap="edit" disabled="{{busy}}">{{copy.edit}}</button><button class="secondary" data-id="{{item.id}}" bindtap="evidenceList" disabled="{{busy}}">{{copy.viewEvidence}}</button></view>
+      <view wx:if="{{evidence !== null}}" class="card record">
+        <view class="section-title">{{copy.evidence}}</view>
+        <view wx:if="{{!evidence.length}}" class="muted">{{copy.noEvidence}}</view>
+        <button wx:for="{{evidence}}" wx:key="id" class="secondary" data-id="{{item.id}}" bindtap="preview" disabled="{{busy}}">{{item.filename}}</button>
+        <button class="secondary" bindtap="closeEvidence">{{copy.close}}</button>
+      </view>
+    </block>
+    <block wx:elif="{{tab === 1}}">
+      <view class="notice">{{copy.billNote}}</view>
+      <view wx:if="{{!busy && !rows.length}}" class="empty">{{copy.billsEmpty}}</view>
+      <view wx:for="{{rows}}" wx:key="id" class="card record"><view class="row"><text>{{item.number}}</text><text class="badge">{{item.statusText}}</text></view><view>{{copy.billAmount}}：¥{{item.totalText}}</view><view>{{copy.billBalance}}：¥{{item.balanceText}}</view><view class="muted">{{copy.billDue}}：{{item.dueDate}}</view></view>
+    </block>
+    <block wx:else>
+      <view wx:if="{{!busy && !assets.length}}" class="notice">{{copy.assetEmpty}}</view>
+      <view wx:if="{{assets.length}}" class="card form">
+        <view class="label">{{copy.chooseAsset}} *</view><picker range="{{assets}}" range-key="name" value="{{repair.asset}}" bindchange="field" data-form="repair" data-key="asset" disabled="{{busy}}"><view class="input">{{assets[repair.asset].name}} ⌄</view></picker>
+        <view class="label">{{copy.category}}</view><picker range="{{copy.categories}}" value="{{repair.category}}" bindchange="field" data-form="repair" data-key="category" disabled="{{busy}}"><view class="input">{{copy.categories[repair.category]}} ⌄</view></picker>
+        <label class="label" for="repairTitle">{{copy.repairTitle}} *</label><input id="repairTitle" maxlength="100" value="{{repair.title}}" bindinput="field" data-form="repair" data-key="title" disabled="{{busy}}"/>
+        <label class="label" for="description">{{copy.description}} *</label><textarea id="description" maxlength="1000" value="{{repair.description}}" bindinput="field" data-form="repair" data-key="description" disabled="{{busy}}"/>
+        <button class="primary" bindtap="saveRepair" disabled="{{busy}}">{{copy.sendRepair}}</button>
+      </view>
+      <view wx:if="{{!busy && !rows.length}}" class="empty">{{copy.repairsEmpty}}</view>
+      <view wx:for="{{rows}}" wx:key="id" class="card record"><view class="row"><text>{{item.title}}</text><text class="badge">{{item.statusText}}</text></view><view class="muted">{{item.number}}</view><button class="secondary" data-id="{{item.id}}" bindtap="progress" disabled="{{busy}}">{{copy.progress}}</button></view>
+      <view wx:if="{{progress}}" class="card record"><view class="section-title">{{progress.title}} · {{progress.statusText}}</view><view>{{progress.description}}</view><view wx:for="{{progress.events}}" wx:key="id" class="muted">{{item.statusText}} · {{item.createdAt}}</view><button class="secondary" bindtap="closeProgress">{{copy.close}}</button></view>
+    </block>
+    <button wx:if="{{more}}" class="secondary" bindtap="next" disabled="{{busy}}">{{copy.more}}</button>
+  </block>
+  <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+</view>

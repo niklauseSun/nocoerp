@@ -22,6 +22,7 @@ import api from './api.js';
 import database from './database.js';
 import snowflake from './snowflake.js';
 import users from './users.js';
+import merchantMiniapp from './merchant-miniapp.js';
 import wecom from './wecom.js';
 
 const defaultConfigs: AppConfigFactory<{
@@ -45,6 +46,7 @@ const defaultConfigs: AppConfigFactory<{
   database: ReturnType<typeof database>;
   snowflake: ReturnType<typeof snowflake>;
   users: ReturnType<typeof users>;
+  merchantMiniapp: ReturnType<typeof merchantMiniapp>;
   wecom: ReturnType<typeof wecom>;
 }> = defaultAppConfigs({
   auth,
@@ -68,6 +70,7 @@ const defaultConfigs: AppConfigFactory<{
   snowflake,
   users,
   wecom,
+  merchantMiniapp,
 });
 
 export default defaultConfigs;

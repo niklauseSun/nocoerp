@@ -1,3 +1,4 @@
+import MerchantMiniappProvider from './merchant-miniapp.js';
 import OperationLogsProvider from './operation-logs.js';
 import OrganizationProvider from './organization.js';
 import ApprovalsProvider from './approvals.js';
@@ -10,6 +11,7 @@ import HylProvider from './hyl.js';
 
 const serviceProviders: readonly ApplicationServiceProviderConstructor[] = [
   HylProvider,
+  MerchantMiniappProvider,
   OperationLogsProvider,
   OrganizationProvider,
   WecomProvider,

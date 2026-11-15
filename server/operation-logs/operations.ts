@@ -1,6 +1,30 @@
 // Explicit mutation allowlist from the application OpenAPI document; reads and previews are excluded.
 export const operations = [
   {
+    method: 'PUT',
+    path: '/api/merchantMiniapp/merchants/{merchantId}/grants',
+    module: 'merchantMiniapp',
+    operation: 'merchantMiniappSetGrant',
+  },
+  {
+    method: 'POST',
+    path: '/api/merchantMiniapp/merchants/{merchantId}/reports',
+    module: 'merchantMiniapp',
+    operation: 'merchantMiniappSaveReport',
+  },
+  {
+    method: 'POST',
+    path: '/api/merchantMiniapp/merchants/{merchantId}/reports/{id}/submit',
+    module: 'merchantMiniapp',
+    operation: 'merchantMiniappSubmitReport',
+  },
+  {
+    method: 'POST',
+    path: '/api/merchantMiniapp/merchants/{merchantId}/repairs',
+    module: 'merchantMiniapp',
+    operation: 'merchantMiniappCreateRepair',
+  },
+  {
     method: 'POST',
     path: '/api/users/invitations',
     module: 'users',

@@ -1138,7 +1138,8 @@ export class BillingService {
                 f.number('depositCents').gt(0),
               ]),
             );
-          else fail('INVALID_FIELD', 'INVALID_ARGUMENT');
+          else if (status !== 'issued')
+            fail('INVALID_FIELD', 'INVALID_ARGUMENT');
         }
         if (input.overdue)
           parts.push(

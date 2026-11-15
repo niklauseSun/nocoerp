@@ -142,6 +142,7 @@ export const operationLogMiddleware = defineHttpMiddleware<Application>({
           'invitationId',
           'scheduleId',
           'messageId',
+          'merchantId',
         ].find((p) => operation.params.includes(p));
         const position = parameter ? operation.params.indexOf(parameter) : -1;
         const captured = position >= 0 ? (captures?.[position + 1] ?? '') : '';

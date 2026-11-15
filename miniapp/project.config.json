@@ -1,6 +1,6 @@
 {
   "appid": "touristappid",
-  "projectname": "海源里商家端开发预览",
+  "projectname": "海源里商家端",
   "compileType": "miniprogram",
   "miniprogramRoot": "./",
   "setting": {
@@ -12,7 +12,10 @@
   "packOptions": {
     "ignore": [
       { "type": "file", "value": "README.md" },
-      { "type": "file", "value": "package.json" }
+      { "type": "file", "value": "package.json" },
+      { "type": "folder", "value": "pages/home" },
+      { "type": "file", "value": "lib/store.js" },
+      { "type": "file", "value": "lib/copy.js" }
     ]
   }
 }

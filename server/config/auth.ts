@@ -4,6 +4,7 @@ import {
   defineAuthConfig,
   type AuthConfig,
 } from '@nocobase/app-plugin-authentication/server';
+import { merchantMiniappSession } from '../merchant-miniapp/session.js';
 import { bearer, deviceAuthorization, username } from 'better-auth/plugins';
 
 /**
@@ -26,6 +27,7 @@ const auth: AppConfigFactory<AuthConfig> = defineAuthConfig({
         validateClient: (clientId) => CLI_CLIENT_IDS.includes(clientId),
       }),
       bearer(),
+      merchantMiniappSession(),
     ],
     emailAndPassword: { enabled: true, autoSignIn: false },
     session: { storeSessionInDatabase: true },

@@ -1,5 +1,5 @@
 {
-  "pages": ["pages/home/index"],
+  "pages": ["pages/erp/index"],
   "window": {
     "navigationBarTitleText": "海源里 · 商家服务",
     "navigationBarBackgroundColor": "#f6f8f7",
