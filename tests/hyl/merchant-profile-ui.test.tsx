@@ -681,9 +681,9 @@ it('omits the contract number input and preserves the contract period group', ()
     'placeholder',
     '输入商户名称或编号搜索',
   );
-  expect(
-    screen.queryByPlaceholderText('搜索名称、编号或参考号'),
-  ).not.toBeInTheDocument();
+  expect(screen.getByPlaceholderText('搜索名称、编号或参考号')).toBe(
+    screen.getByRole('combobox', { name: '合同资产' }),
+  );
   expect(screen.getByText('合同编号将在保存时自动生成。')).toBeInTheDocument();
   expect(
     screen.getByRole('heading', { name: '合同与周期' }),

@@ -17,6 +17,7 @@ import { approvalResource } from '../../server/approvals/resources.js';
 import { assetResource } from '../../server/assets/resources.js';
 import { resources } from '../../server/hyl/resources.js';
 import { procurementResource } from '../../server/procurement/resources.js';
+import { addDays, today } from '../../server/inspections/calendar.js';
 const test = createAppTest({
   createServer: createStandaloneServer,
   config: {
@@ -31,6 +32,7 @@ test('sequential approvals freeze rules and source, reject/resubmit, gate all th
   const admin = await signIn(testApp, DEFAULT_ADMIN_CREDENTIALS),
     users = testApp.application.container.resolve(userManagementServiceToken),
     authz = testApp.application.container.resolve(authorizationToken);
+  const purchaseNeededOn = addDays(today(), 7);
   async function call(
     path: string,
     body?: unknown,
@@ -331,7 +333,7 @@ test('sequential approvals freeze rules and source, reject/resubmit, gate all th
       values: {
         title: 'Approval purchase',
         assetId: project.id,
-        neededOn: '2026-10-31',
+        neededOn: purchaseNeededOn,
         reason: 'Parts',
         items: [{ name: 'Lamp', unit: 'each', quantity: 1, unitPrice: '10' }],
       },
@@ -379,7 +381,7 @@ test('sequential approvals freeze rules and source, reject/resubmit, gate all th
       values: {
         title: 'Concurrent review',
         assetId: project.id,
-        neededOn: '2026-10-31',
+        neededOn: purchaseNeededOn,
         reason: 'Test',
         items: [{ name: 'Part', unit: 'each', quantity: 1, unitPrice: '2' }],
       },
@@ -585,7 +587,7 @@ test('sequential approvals freeze rules and source, reject/resubmit, gate all th
       values: {
         title: 'No candidate',
         assetId: project.id,
-        neededOn: '2026-10-31',
+        neededOn: purchaseNeededOn,
         reason: 'Test',
         items: [{ name: 'Part', unit: 'each', quantity: 1, unitPrice: '1' }],
       },
